@@ -1,0 +1,22 @@
+1. SBC	- Done
+2. BCS  - Done
+3. BEQ	- Done
+4. BNE	- Done
+5. BVS	- Done
+6. CLD	- Done
+7. CLV	- Done
+8. CMP	- Done
+9. CPX	- Done
+10. CPY	- Done
+11. DEC	- Done
+12. DEX	- Done
+13. INC	- Done
+14. INX	- Done
+
+Flag Fucntions
+
+And 
+1. fetch method.
+2. reset
+3. irq
+4. nmi
