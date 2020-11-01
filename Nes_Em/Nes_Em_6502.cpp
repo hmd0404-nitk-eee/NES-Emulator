@@ -133,6 +133,132 @@ void Nes_Em_6502::clock() {
 	cycles--;
 }
 
+// Fetch method: To get data and update the fetched value.
+//Also return the same value for ease in handling in few functions.
+uint8_t Nes_Em_6502::fetch() {
+	//we don't fetch data if the mode is IMP (implied) as it doesn't need any extra data
+	if (opCodeLookUpTable[opcode].addrmode != &Nes_Em_6502::IMP) {
+		//Read from the absolute address
+		fetched = read(addr_abs);
+		return fetched;
+	}
+
+	return 0;
+}
+
+//Reset method for the 6502.
+//The chip reads data directly from 0xFFFC to get the location for the program
+//The address 0xFFFC can be set directly by the programmer in compile time for the chip,
+//to handle reset and proper arrive at the program.
+//Also The Unused flag is kept 'on' (IDK why?)
+void Nes_Em_6502::reset() {
+	//Getting the location for reseted prog_counter
+	addr_abs = 0xFFFC;
+	uint16_t low_byte = read(addr_abs);
+	uint16_t high_byte = read(addr_abs + 1);
+	progcount_reg = (high_byte << 8) | low_byte;		//As the prog_counter is 2 bytes
+
+	//Resetting the registers
+	accum_reg = 0x00;
+	x_reg = 0x00;
+	y_reg = 0x00;
+	stkptr_reg = 0xFD;		//Some static chip inbuilt address for it
+	status_reg = 0x00 | U;	//U flag must be on always
+
+	//Clearing the internal helper variables
+	addr_abs = 0x00;
+	addr_rel = 0x00;
+	fetched = 0x00;
+
+	//Reset function takes time, but why 8? To check!
+	cycles = 8;
+}
+
+//Similar to reset function but doesn't change the program state, it just stops the current actions
+//And performs a specific interupt handling action programmed by the programmer.
+void Nes_Em_6502::interupt_req() {
+	//Getting if the Interupts are allowed
+	if (getFlag(I) == 0) {
+		//Via standard procedure, the program must push the program counter and the status to the stack
+		
+		//Program counter is 16bit thus two pushes required!
+		//The stack starts at 0x0100 (system)
+		write(0x0100 + stkptr_reg, (progcount_reg >> 8) & 0x00FF);		//High 8 bits
+		stkptr_reg--;
+		write(0x0100 + stkptr_reg, progcount_reg & 0x00FF);				//Low 8 bits
+		stkptr_reg--;
+
+		//Pushing the status to the stack
+		setFlag(B, 0);
+		setFlag(U, 1);
+		setFlag(I, 1);
+		write(0x0100 + stkptr_reg, status_reg);
+		stkptr_reg--;
+
+		//Reading the location of program that handles the interupts
+		//The program is always written to a fixe address
+		addr_abs = 0xFFFE;							//Absolute address that has the interupt handler program
+		uint16_t low_bits = read(addr_abs);
+		uint16_t high_bits = read(addr_abs + 1);
+		progcount_reg = (high_bits << 8) | low_bits;
+
+		//Again interupts takes time but why 7 cycles? To check!
+		cycles = 7;
+	}
+}
+
+//Non maskable interupts are same as interupt_req but nothing can stop it from executing
+void Nes_Em_6502::non_mask_interupt_req() {
+	//Via standard procedure, the program must push the program counter and the status to the stack
+
+	//Program counter is 16bit thus two pushes required!
+	//The stack starts at 0x0100 (system)
+	write(0x0100 + stkptr_reg, (progcount_reg >> 8) & 0x00FF);		//High 8 bits
+	stkptr_reg--;
+	write(0x0100 + stkptr_reg, progcount_reg & 0x00FF);				//Low 8 bits
+	stkptr_reg--;
+
+	//Pushing the status to the stack
+	setFlag(B, 0);
+	setFlag(U, 1);
+	setFlag(I, 1);
+	write(0x0100 + stkptr_reg, status_reg);
+	stkptr_reg--;
+
+	//Reading the location of program that handles the interupts
+	//The program is always written to a fixe address
+	addr_abs = 0xFFFA;							//Absolute address that has the interupt handler program
+	uint16_t low_bits = read(addr_abs);
+	uint16_t high_bits = read(addr_abs + 1);
+	progcount_reg = (high_bits << 8) | low_bits;
+
+	//Again interupts takes time but why 8 cycles? To check!
+	cycles = 8;
+}
+
+//-------------> Flag Functions <---------------//
+
+uint8_t Nes_Em_6502::getFlag(FLAGS_6502 flag) {
+	//returns 1 if status register has the flag active
+	//Checks by performing bitwise & with the flag.
+	return (status_reg & flag) ? 1 : 0;
+}
+
+void Nes_Em_6502::setFlag(FLAGS_6502 flag, bool value) {
+	//sets the status_reg to the flag as per value
+	if (value) {
+		//value -> true then we set the flag 'on' by 'or-ing' it with existing value
+		status_reg |= flag;
+	}
+	else {
+		//value -> false then we set the flag 'off' by 'and-ing' it's complement with exiting value
+		status_reg &= ~flag;
+	}
+}
+
+//----------------------------------------------//
+
+
 // ADDRESSING MODES //
 
 //Implied Address Mode
@@ -293,7 +419,7 @@ uint8_t Nes_Em_6502::IZY()
 	uint16_t low_byte = read(addr & 0x00FF);
 	uint16_t high_byte = read((addr + 1) & 0x00FF);
 	addr_abs = (high_byte << 8) | low_byte;
-	addr_abs += y;
+	addr_abs += y_reg;
 
 	//If indexing into the following page then extra clock cycle required
 	if ((addr_abs & 0xFF00) != (high_byte << 8))
@@ -316,3 +442,244 @@ uint8_t Nes_Em_6502::REL()
 		addr_rel |= 0xFF00;			//Setting the High Bits to 1 so as to ensure proper binary arithmetic later when we 
 	return 0;						//add this relative address to the program counter
 }
+
+
+//----------------> INSTRUCTIONS <----------------------//
+
+//Branch if Carry Set: All branching fucntions require 1 extra cycle by default (so as to go to next instruction)
+//Also if the branch occurs are at a page change then one more additional cycle
+uint8_t Nes_Em_6502::BCS() {
+	//Check if Carry flag is set ('on')
+	if (getFlag(C) == 1) {
+		cycles++;											//Default extra cycle
+		addr_abs = progcount_reg + addr_rel;				//Getting the location of the next instruction 
+															//(rel as mentioned in the datasheet)
+
+		//Checking if the current instruction and next instruction are on the same page. If not then extra cycle time
+		if ((addr_abs & 0xFF00) != (progcount_reg & 0xFF00)) {			
+			cycles++;
+		}
+
+		//setting the location of the new instruction in the prog_counter
+		progcount_reg = addr_abs;
+	}
+
+	//To Check: Should return 1 I guess as this fuction may take extra time.
+	return 0;
+}
+
+//Similarly BEQ: Branch if Equal i.e. Zero flag is set
+uint8_t Nes_Em_6502::BEQ() {
+	//Check if Zero flag is set ('on')
+	if (getFlag(Z) == 1) {
+		cycles++;											//Default extra cycle
+		addr_abs = progcount_reg + addr_rel;				//Getting the location of the next instruction 
+															//(rel as mentioned in the datasheet)
+
+		//Checking if the current instruction and next instruction are on the same page. If not then extra cycle time
+		if ((addr_abs & 0xFF00) != (progcount_reg & 0xFF00)) {
+			cycles++;
+		}
+
+		//setting the location of the new instruction in the prog_counter
+		progcount_reg = addr_abs;
+	}
+
+	//To Check: Should return 1 I guess as this fuction may take extra time.
+	return 0;
+}
+
+//Similarly Branch if Not Equal i.e. Zero flag not set ('off')
+uint8_t Nes_Em_6502::BNE() {
+	//Check if Carry flag is set ('on')
+	if (getFlag(Z) == 0) {
+		cycles++;											//Default extra cycle
+		addr_abs = progcount_reg + addr_rel;				//Getting the location of the next instruction 
+															//(rel as mentioned in the datasheet)
+
+		//Checking if the current instruction and next instruction are on the same page. If not then extra cycle time
+		if ((addr_abs & 0xFF00) != (progcount_reg & 0xFF00)) {
+			cycles++;
+		}
+
+		//setting the location of the new instruction in the prog_counter
+		progcount_reg = addr_abs;
+	}
+
+	//To Check: Should return 1 I guess as this fuction may take extra time.
+	return 0;
+}
+
+//Similarly BEQ: Branch if Overflow Set i.e. Overflow flag is set
+uint8_t Nes_Em_6502::BVS() {
+	//Check if Carry flag is set ('on')
+	if (getFlag(V) == 1) {
+		cycles++;											//Default extra cycle
+		addr_abs = progcount_reg + addr_rel;				//Getting the location of the next instruction 
+															//(rel as mentioned in the datasheet)
+
+		//Checking if the current instruction and next instruction are on the same page. If not then extra cycle time
+		if ((addr_abs & 0xFF00) != (progcount_reg & 0xFF00)) {
+			cycles++;
+		}
+
+		//setting the location of the new instruction in the prog_counter
+		progcount_reg = addr_abs;
+	}
+
+	//To Check: Should return 1 I guess as this fuction may take extra time.
+	return 0;
+}
+
+//Redundant Function actually, cause NES here doesn't use this mode (Decimal Mode)
+//Clear the Decimal Flag
+uint8_t Nes_Em_6502::CLD() {
+	setFlag(D, false);
+	return 0;
+}
+
+//Clear the Overflow flag
+uint8_t Nes_Em_6502::CLV() {
+	setFlag(V, false);
+	return 0;
+}
+
+//Compare functions, compare the value fetched with the value at Accumulator/X/Y reg
+//Sets flags as follows:
+//N - if Accum/X/Y < fetched		C - if Accum/X/Y > fetched		C,Z - if Accum/X/Y = fetched
+uint8_t Nes_Em_6502::CMP() {
+	fetch();
+	if (accum_reg >= fetched) {
+		setFlag(C, true);
+		if (fetched == accum_reg) {
+			setFlag(Z, true);
+		}
+	}
+	else {
+		setFlag(N, true);
+	}
+}
+
+uint8_t Nes_Em_6502::CPX() {
+	fetch();
+	if (x_reg >= fetched) {
+		setFlag(C, true);
+		if (fetched == x_reg) {
+			setFlag(Z, true);
+		}
+	}
+	else {
+		setFlag(N, true);
+	}
+}
+
+uint8_t Nes_Em_6502::CPY() {
+	fetch();
+	if (y_reg >= fetched) {
+		setFlag(C, true);
+		if (fetched == y_reg) {
+			setFlag(Z, true);
+		}
+	}
+	else {
+		setFlag(N, true);
+	}
+}
+
+//Decrementing Functions, decrement the value stored at the memory location/X by 1 and re-write it to the
+//same location/X.
+//Flags set as follows:
+//N - if new value <0		Z - if new value == 0
+uint8_t Nes_Em_6502::DEC() {
+	fetch();
+	uint8_t temp = fetched - 1;
+	write(addr_abs, temp);
+	setFlag(N, temp & 0x80);
+	setFlag(Z, temp == 0x00);
+	return 0;
+}
+
+uint8_t Nes_Em_6502::DEX() {
+	x_reg--;
+	setFlag(N, x_reg & 0x80);
+	setFlag(Z, x_reg == 0x00);
+	return 0;
+}
+
+//Incrementing Functions, increment the value stored at the memory location/X by 1 and re-write to the
+//same location/X.
+//Flags set as follows:
+//N - if new value <0		Z - if new value == 0
+
+uint8_t Nes_Em_6502::INC() {
+	fetch();
+	uint8_t temp = fetched + 1;
+	write(addr_abs, temp);
+	setFlag(N, temp & 0x80);
+	setFlag(Z, temp == 0x00);
+	return 0;
+}
+
+uint8_t Nes_Em_6502::INX() {
+	x_reg++;
+	setFlag(N, x_reg & 0x80);
+	setFlag(Z, x_reg == 0x00);
+	return 0;
+}
+
+
+//Instead of subtracting the numbers, we are adding the negative of the number
+//Also for the borrow we add the inverse of carry i.e. 1-C
+uint8_t Nes_Em_6502::SBC() {
+	fetch();
+	
+	//Inverting the fetched value i.e. getting the negative of that number using 
+	//Two's complement
+	uint8_t value = (fetched ^ 0xFF) + 1;
+
+	//The negative addition with borrow.
+	//If Carry is 1 then borrow 0 and vice-versa
+	uint16_t temp;
+	if (getFlag(C) == 1) {
+		temp = accum_reg + value;
+	}
+	else {
+		temp = accum_reg + value + 1;
+	}
+
+	//Setting the cary flag for subsequent operations 
+	//By checking if any bit has overflowed into higher word
+	setFlag(C, (temp & 0xFF00));
+
+	//Setting the Zero flag to indicate that the current operation resulted
+	//in 0 as a result
+	setFlag(Z, (temp & 0x00FF) == 0);
+
+	//Setting the overflow flag as per the following table: 
+	//Note: Using the MSB (0 - Positive, 1 - Negative)
+	//Note2: Setting the Negative with the overflow flag itself
+	//Accum			Data			Result			Overflow
+	//	0			 0				  1				  Yes
+	//	1			 1				  0				  Yes
+	//Else no overflow
+	if ((accum_reg & 0x80) && (value & 0x80)) {
+		if (temp & 0x0080) {
+			setFlag(V, true);
+			//Also setting the negative flag 
+			setFlag(N, true);
+		}
+	} else if(!(accum_reg & 0x80) && !(value & 0x80)) {
+		if (!(temp & 0x0080)) {
+			setFlag(V, true);
+			setFlag(N, false);
+		}
+	} else {
+		setFlag(V, false);
+		setFlag(N, (temp & 0x0080));
+	}
+
+	//As the function may require more time
+	return 1;
+}
+
+//------------------------------------------------------//
