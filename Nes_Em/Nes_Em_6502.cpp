@@ -682,4 +682,597 @@ uint8_t Nes_Em_6502::SBC() {
 	return 1;
 }
 
+//Addition with Carry
+uint8_t Nes_Em_6502::ADC() {
+	fetch();
+
+	//Adding the accum and fetched alongwith the carry flag
+	uint16_t sum = (uint16_t)accum_reg + (uint16_t)fetched + (uint16_t)getFlag(C);
+
+	//Setting the Carry flag if the value of sum is greater than 8 bits
+	setFlag(C, sum > 255);
+
+	//Setting the Zero flag if sum is zero
+	setFlag(Z, (sum & 0x00FF) == 0);
+
+	//Setting the Negative flag by checking the MSB 
+	setFlag(N, sum & 0x80);
+
+	//Setting the overflow flag as per the following table: 
+	//Note: Using the MSB (0 - Positive, 1 - Negative)
+	//Note2: Setting the Negative with the overflow flag itself
+	//Accum			Data			Result			Overflow
+	//	0			 0				  1				  Yes
+	//	1			 1				  0				  Yes
+	//Else no overflow
+	if ((accum_reg & 0x80) && (fetched & 0x80)) {
+		if (!(sum & 0x0080)) {
+			setFlag(V, true);
+		}
+	}
+	else if (!(accum_reg & 0x80) && !(fetched & 0x80)) {
+		if (sum & 0x0080) {
+			setFlag(V, true);
+		}
+	}
+	else {
+		setFlag(V, false);
+	}
+
+	accum_reg = sum & 0x00FF;
+	return 1;
+}
+
+//Performs logical Bitwise And operation of accum and memory read and stores it back in accum.
+//Flags set: N, Z
+uint8_t Nes_Em_6502::AND() {
+	fetch();
+	accum_reg = accum_reg & fetched;
+
+	setFlag(N, accum_reg & 0x80);
+	setFlag(Z, accum_reg == 0x00);
+
+	return 1;
+}
+
+// Add the relative offset to the absolute address if carry flag is set
+uint8_t Nes_Em_6502::BCS() {
+	if (getFlag(C) == 1) {
+		cycles++;
+		addr_abs = progcount_reg + addr_rel;
+
+		//If the addr_abs and progcount aren't on the same page then extra cycle needed
+		if ((addr_abs & 0xFF00) != (progcount_reg & 0xFF00)) {
+			cycles++;
+		}
+
+		progcount_reg = addr_abs;
+	}
+	return 0;
+}
+
+// Branch if zero bit is set
+uint8_t Nes_Em_6502::BEQ() {
+	if (getFlag(Z) == 1) {
+		cycles++;
+		addr_abs = progcount_reg + addr_rel;
+
+		//If the addr_abs and progcount aren't on the same page then extra cycle needed
+		if ((addr_abs & 0xFF00) != (progcount_reg & 0xFF00)) {
+			cycles++;
+		}
+
+		progcount_reg = addr_abs;
+	}
+	return 0;
+}
+
+// Branch if zero bit is not set
+uint8_t Nes_Em_6502::BNE() {
+	if (getFlag(Z) == 0) {
+		cycles++;
+		addr_abs = progcount_reg + addr_rel;
+
+		if ((addr_abs & 0xFF00) != (progcount_reg & 0xFF00)) {
+			cycles++;
+		}
+
+		progcount_reg = addr_abs;
+	}
+	return 0;
+}
+
+// Branch if minus bit is set
+uint8_t Nes_Em_6502::BMI() {
+	if (getFlag(N) == 1) {
+		cycles++;
+		addr_abs = progcount_reg + addr_rel;
+
+		if ((addr_abs & 0xFF00) != (progcount_reg & 0xFF00)) {
+			cycles++;
+		}
+
+		progcount_reg = addr_abs;
+	}
+	return 0;
+}
+
+// Branch if carry bit is clear
+uint8_t Nes_Em_6502::BCC() {
+	if (getFlag(C) == 0) {
+		cycles++;
+		addr_abs = progcount_reg + addr_rel;
+
+		if ((addr_abs & 0xFF00) != (progcount_reg & 0xFF00)) {
+			cycles++;
+		}
+
+		progcount_reg = addr_abs;
+	}
+	return 0;
+}
+
+// Branch if overflow bit is clear
+uint8_t Nes_Em_6502::BVC() {
+	if (getFlag(V) == 0) {
+		cycles++;
+		addr_abs = progcount_reg + addr_rel;
+
+		if ((addr_abs & 0xFF00) != (progcount_reg & 0xFF00)) {
+			cycles++;
+		}
+
+		progcount_reg = addr_abs;
+	}
+	return 0;
+}
+
+// Branch if overflow bit is set
+uint8_t Nes_Em_6502::BVS() {
+	if (getFlag(V) == 1) {
+		cycles++;
+		addr_abs = progcount_reg + addr_rel;
+
+		if ((addr_abs & 0xFF00) != (progcount_reg & 0xFF00)) {
+			cycles++;
+		}
+			
+		progcount_reg = addr_abs;
+	}
+	return 0;
+}
+
+// Clear the carry bit
+uint8_t Nes_Em_6502::CLC()
+{
+	setFlag(C, false);
+	return 0;
+}
+
+// Clear the interrupt bit
+uint8_t Nes_Em_6502::CLI()
+{
+	setFlag(I, false);
+	return 0;
+}
+
+// Clear the decimal bit
+uint8_t Nes_Em_6502::CLD()
+{
+	setFlag(D, false);
+	return 0;
+}
+
+// Clear the overflow flag
+uint8_t Nes_Em_6502::CLV()
+{
+	setFlag(V, false);
+	return 0;
+}
+
+// Set the carry flag
+uint8_t Nes_Em_6502::SEC()
+{
+	setFlag(C, true);
+	return 0;
+}
+
+// Set the decimal flag
+uint8_t Nes_Em_6502::SED()
+{
+	setFlag(D, true);
+	return 0;
+}
+
+// Set the interrupt flag
+uint8_t Nes_Em_6502::SEI()
+{
+	setFlag(I, true);
+	return 0;
+}
+
+// Push the accumulator to the top of the Stack
+uint8_t Nes_Em_6502::PHA()
+{
+	write(0x0100 + stkptr_reg, accum_reg);
+	stkptr_reg--;
+	return 0;
+}
+
+// Pops the accumulator to the top of the Stack
+uint8_t Nes_Em_6502::PLA()
+{
+	stkptr_reg++;
+	accum_reg = read(0x0100 + stkptr_reg);
+	setFlag(Z, accum_reg == 0x00);
+	setFlag(N, accum_reg & 0x80);
+	return 0;
+}
+
+// Return from the interrupt state
+uint8_t Nes_Em_6502::RTI()
+{
+	stkptr_reg++;
+	status_reg = read(0x0100 + stkptr_reg);
+	status_reg = status_reg & ~B;
+	status_reg = status_reg & ~U;
+	stkptr_reg++;
+	progcount_reg = (uint16_t)read(0x0100 + stkptr_reg);
+	stkptr_reg++;
+	progcount_reg = progcount_reg | (uint16_t)read(0x0100 + stkptr_reg) << 8;
+	return 0;
+}
+
+// Program sourced Interrupt
+uint8_t Nes_Em_6502::BRK() {
+	progcount_reg++;
+	write(0x0100 + stkptr_reg, progcount_reg >> 8 & 0x00FF);
+	stkptr_reg--;
+	write(0x0100 + stkptr_reg, progcount_reg & 0x00FF);
+	stkptr_reg--;
+	setFlag(B, 1);
+	write(0x0100 + stkptr_reg, status_reg);
+	stkptr_reg--;
+	setFlag(B, 0);
+	progcount_reg = (uint16_t)read(0xFFFE) | ((uint16_t)read(0xFFFF) << 8);
+	return 0;
+
+}
+
+// Arithmetic Left shift
+uint8_t Nes_Em_6502::ASL() {
+	fetch();
+	setFlag(C, fetched & 0x80);
+	uint8_t temp = fetched << 1;
+	setFlag(Z, temp == 0x00);
+	setFlag(N, temp & 0x80);
+	if (opCodeLookUpTable[opcode].addrmode == &Nes_Em_6502::IMP)
+		accum_reg = (uint16_t)temp;
+	else
+		write(addr_abs, (uint16_t)temp);
+	return 0;
+
+}
+
+// Test bits
+uint8_t Nes_Em_6502::BIT() {
+	fetch();
+	uint16_t temp = accum_reg & fetched;
+	setFlag(Z, (temp & 0x00FF) == 0x00);
+	setFlag(N, fetched & (1 << 7));
+	setFlag(V, fetched & (1 << 6));
+	return 0;
+}
+
+// Exclusive OR
+uint8_t Nes_Em_6502::EOR() {
+	fetch();
+	accum_reg = accum_reg ^ fetched;
+	setFlag(Z, accum_reg == 0x00);
+	setFlag(N, accum_reg & 0x80);
+	return 1;
+}
+
+// Decrement y
+uint8_t Nes_Em_6502::DEY() {
+	y_reg--;
+	setFlag(Z, y_reg == 0x00);
+	setFlag(N, y_reg & 0x80);
+	return 0;
+}
+
+// Decrement x
+uint8_t Nes_Em_6502::DEX() {
+	x_reg--;
+	setFlag(Z, x_reg == 0x00);
+	setFlag(N, x_reg & 0x80);
+	return 0;
+}
+
+// Increment y
+uint8_t Nes_Em_6502::INY() {
+	  y_reg++;
+	  setFlag(Z, y_reg == 0x00);
+	  setFlag(N, y_reg & 0x80);
+	  return 0;
+}
+
+// Increment x
+uint8_t Nes_Em_6502::INX() {
+	x_reg++;
+	setFlag(Z, x_reg == 0x00);
+	setFlag(N, x_reg & 0x80);
+	return 0;
+}
+
+// Instruction: Jump To Location
+// Function:    pc = address
+uint8_t Nes_Em_6502::JMP() {
+	progcount_reg = addr_abs;
+	return 0;
+}
+
+// Instruction: Jump To Sub-Routine
+// Function:    Push current pc to stack, pc = address
+uint8_t Nes_Em_6502::JSR() {
+	progcount_reg--;
+	write(0x0100 + stkptr_reg, (progcount_reg >> 8) & 0x00FF);
+	stkptr_reg--;
+	write(0x0100 + stkptr_reg, progcount_reg & 0x00FF);
+	stkptr_reg--;
+
+	progcount_reg = addr_abs;
+	return 0;
+}
+
+// Instruction: Load The Accumulator
+// Function:    A = M
+// Flags Out:   N, Z
+uint8_t Nes_Em_6502::LDA() {
+	fetch();
+
+	accum_reg = fetched;
+	setFlag(N, accum_reg & 0x80);
+	setFlag(Z, accum_reg == 0x00);
+	return 0;
+}
+
+// Instruction: Load The X Register
+// Function:    X = M
+// Flags Out:   N, Z
+uint8_t Nes_Em_6502::LDX() {
+	fetch();
+	x_reg = fetched;
+	setFlag(N, x_reg & 0x80);
+	setFlag(Z, x_reg == 0x00);
+	return 0;
+}
+
+// Instruction: Load The Y Register
+// Function:    Y = M
+// Flags Out:   N, Z
+uint8_t Nes_Em_6502::LDY() {
+	fetch();
+	y_reg = fetched;
+	setFlag(N, y_reg & 0x80);
+	setFlag(Z, y_reg == 0x00);
+	return 0;
+}
+
+// instruction: logical shift right
+// LSR shifts all bits right one position. 0 is shifted into bit 7 and the original bit 0 is shifted into the Carry.
+// flages out : Z,N ,C
+uint8_t Nes_Em_6502::LSR() {
+	fetch();
+	setFlag(C, fetched & 0x0001);
+	uint16_t temp = fetched >> 1;
+	setFlag(Z, (temp && 0x00FF) == 0x0000);
+	setFlag(N, temp & 0x0080);
+	if (opCodeLookUpTable[opcode].addrmode == &Nes_Em_6502::IMP) {
+		accum_reg = temp & 0x00FF;
+	}
+	else {
+		write(addr_abs, temp & 0x00FF);
+	}
+
+	return 0;
+
+
+}
+
+//NOP is a mnemonic that stands for “No Operation”. This instruction does nothing during execution
+uint8_t Nes_Em_6502::NOP() {
+	switch (opcode) {
+		case 0x1C:
+		case 0x3C:
+		case 0x5C:
+		case 0x7C:
+		case 0xDC:
+		case 0xFC:
+			return 1;
+	}
+	return 0;
+
+}
+
+// Instruction: Bitwise Logic OR
+// Function:    A = A | M
+// Flags Out:   N, Z
+uint8_t Nes_Em_6502::ORA() {
+	fetch();
+	accum_reg = accum_reg | fetched;
+	setFlag(Z, accum_reg == 0x00);
+	setFlag(N, accum_reg & 0x80);
+	return 0;
+}
+
+// Instruction: Push Status Register to Stack
+// Function:    status -> stack
+// Note:        Break flag is set to 1 before push
+uint8_t Nes_Em_6502::PHP() {
+	write(0x0100 + stkptr_reg, status_reg | B | U);
+	stkptr_reg--;
+	setFlag(B, 0);
+	setFlag(U, 0);
+	return 0;
+}
+
+// Instruction: Pop Status Register off Stack
+// Function:    Status <- stack
+uint8_t Nes_Em_6502::PLP() {
+	stkptr_reg++;
+	status_reg = read(0x0100 + stkptr_reg);
+	setFlag(U, 1);
+	return 0;
+}
+
+
+//The rotate left (ROL) and rotate through carry left (RCL) instructions shift all the bits toward more-significant bit positions,
+//except for the most-significant bit, which is rotated to the least significant bit location
+// set flage : N,Z,C;
+uint8_t Nes_Em_6502::ROL() {
+	fetch();
+	uint16_t temp = (uint16_t)(fetched << 1) | getFlag(C);
+	setFlag(C, temp & 0xFF00);
+	setFlag(Z, (temp & 0x00FF) == 0x0000);
+	setFlag(N, temp & 0x0080);
+	if (opCodeLookUpTable[opcode].addrmode == &Nes_Em_6502::IMP) {
+		accum_reg = temp & 0x00FF;
+	}
+	else {
+		write(addr_abs, temp & 0x00FF);
+	}
+		
+	return 0;
+}
+
+//The rotate right (ROR) and rotate through carry right (RCR) instructions shift all the bits toward less significant bit positions
+// except for the least-significant bit, which is rotated to the most-significant bit location
+//set flage : C,N,Z
+uint8_t Nes_Em_6502::ROR() {
+	fetch();
+	uint16_t temp = (uint16_t)(fetched >> 1) | (getFlag(C) << 7);
+	setFlag(C, temp & 0xFF00);
+	setFlag(Z, temp & 0x00FF == 0x0000);
+	setFlag(N, temp & 0x0080);
+	if (opCodeLookUpTable[opcode].addrmode == &Nes_Em_6502::IMP) {
+		accum_reg = temp & 0x00FF;
+	}
+	else {
+		write(addr_abs, temp & 0x00FF);
+	}
+		
+	return 0;
+}
+
+//RTS    ---   RTS stands for Return from Subroutine
+//RTS is one of the 6502 Subroutine Operations of 6502 instruction-set.
+//The function of RTS is to pulls the top two bytes off the stack (low byte first)
+// and transfers program control to that address+1 i.e.return (RTS)  from the calling subroutine
+uint8_t Nes_Em_6502::RTS() {
+	stkptr_reg++;
+	progcount_reg = (uint16_t)read(0x0100 + stkptr_reg);
+	stkptr_reg++;
+	progcount_reg |= (uint16_t)read(0x0100 + stkptr_reg) << 8;
+	progcount_reg++;
+	return 0;
+}
+
+//Instruction: Set Carry Flag
+// Function:    C = 1
+uint8_t Nes_Em_6502::SEC() {
+	setFlag(C, true);
+	return 0;
+}
+
+// Instruction: Set Interrupt Flag / Enable Interrupts
+// Function:    I = 1
+uint8_t Nes_Em_6502::SEI() {
+	setFlag(I, true);
+	return 0;
+}
+
+// Instruction: Store Accumulator at Address
+// Function:    M = A
+uint8_t Nes_Em_6502::STA() {
+	write(addr_abs, accum_reg);
+	return 0;
+}
+
+// Instruction: Store X Register at Address
+// Function:    M = X
+uint8_t Nes_Em_6502::STX() {
+	write(addr_abs, x_reg);
+	return 0;
+}
+
+// Instruction: Store Y Register at Address
+// Function:    M = Y
+uint8_t Nes_Em_6502::STY() {
+	write(addr_abs, y_reg);
+	return 0;
+}
+
+// Instruction: Transfer Accumulator to X Register
+// Function:    X = A
+// Flags Out:   N, Z
+uint8_t Nes_Em_6502::TAX() {
+	x_reg = accum_reg;
+	setFlag(N, x_reg & 0x80);
+	setFlag(Z, x_reg == 0x00);
+	return 0;
+}
+
+// Instruction: Transfer Accumulator to Y Register
+// Function:    Y = A
+// Flags Out:   N, Z
+uint8_t Nes_Em_6502::TAY() {
+	y_reg = accum_reg;
+	setFlag(N, y_reg & 0x80);
+	setFlag(Z, y_reg == 0x00);
+	return 0;
+}
+
+// Instruction: Transfer Stack Pointer to X Register
+// Function:    X = stack pointer
+// Flags Out:   N, Z
+uint8_t Nes_Em_6502::TSX() {
+	x_reg = stkptr_reg;
+	setFlag(N, x_reg & 0x80);
+	setFlag(Z, x_reg == 0x00);
+	return 0;
+}
+
+// Instruction: Transfer X Register to Accumulator
+// Function:    A = X
+// Flags Out:   N, Z
+uint8_t Nes_Em_6502::TXA() {
+	accum_reg = x_reg;
+	setFlag(N, accum_reg & 0x80);
+	setFlag(Z, accum_reg == 0x00);
+	return 0;
+}
+
+// Instruction: Transfer X Register to Stack Pointer
+// Function:    stack pointer = X
+uint8_t Nes_Em_6502::TXS() {
+	stkptr_reg = x_reg;
+	return 0;
+}
+
+// Instruction: Transfer Y Register to Accumulator
+// Function:    A = Y
+// Flags Out:   N, Z
+uint8_t Nes_Em_6502::TYA() {
+	accum_reg = y_reg;
+	setFlag(Z, accum_reg == 0x00);
+	setFlag(N, accum_reg & 0x80);
+	return 0;
+}
+
+
+// all illegal opcodes capturing
+uint8_t Nes_Em_6502::XXX() {
+	return 0;
+}
 //------------------------------------------------------//
