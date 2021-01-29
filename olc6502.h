@@ -70,8 +70,11 @@ public:
 
 private:
   Bus *bus = nullptr;
-  uin8_t read(uint16_t a);
-  void write(uint16_t a, uin8_t d);
+  uin8_t cpuRead(uint16_t a);
+  void cpuWrite(uint16_t a, uin8_t d);
+
+  uin8_t ppuRead(uint16_t a);
+  void ppuWrite(uint16_t a, uin8_t d);
   // Convenience functions to access status register
   uint8_t GetFlag(FLAGS6502 f);
   void    SetFlag(FLAGS6502 f, bool v);

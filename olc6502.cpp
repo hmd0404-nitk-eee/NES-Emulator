@@ -594,3 +594,333 @@ uint8_t olc6502:BVS(){
       SetFlag(N, x & 0x80);
       return 0;
     }
+    //31
+    //Compare functions, compare the value fetched with the value at Accumulator/X/Y reg
+    //Sets flags as follows:
+    //N - if Accum/X/Y < fetched		C - if Accum/X/Y > fetched		C,Z - if Accum/X/Y = fetched
+    uint8_t olc6502::CMP() {
+      fetch();
+      if (accum_reg >= fetched) {
+        setFlag(C, true);
+        if (fetched == accum_reg) {
+          setFlag(Z, true);
+        }
+      }
+      else {
+        setFlag(N, true);
+      }
+    }
+// 32
+  uint8_t olc6502::CPX() {
+	fetch();
+	if (x_reg >= fetched) {
+		setFlag(C, true);
+		if (fetched == x_reg) {
+			setFlag(Z, true);
+		}
+	}
+	else {
+		setFlag(N, true);
+	}
+}
+
+// 33
+uint8_t olc6502::CPY() {
+	fetch();
+	if (y_reg >= fetched) {
+		setFlag(C, true);
+		if (fetched == y_reg) {
+			setFlag(Z, true);
+		}
+	}
+	else {
+		setFlag(N, true);
+	}
+}
+// 34
+//Decrementing Functions, decrement the value stored at the memory location/X by 1 and re-write it to the
+//same location/X.
+//Flags set as follows:
+//N - if new value <0		Z - if new value == 0
+uint8_t olc6502::DEC() {
+	fetch();
+	uint8_t temp = fetched - 1;
+	write(addr_abs, temp);
+	setFlag(N, temp & 0x80);
+	setFlag(Z, temp == 0x00);
+	return 0;
+}
+
+// 35
+//Incrementing Functions, increment the value stored at the memory location/X by 1 and re-write to the
+//same location/X.
+//Flags set as follows:
+//N - if new value <0		Z - if new value == 0
+
+uint8_t olc6502::INC() {
+	fetch();
+	uint8_t temp = fetched + 1;
+	write(addr_abs, temp);
+	setFlag(N, temp & 0x80);
+	setFlag(Z, temp == 0x00);
+	return 0;
+}
+// 36
+// Instruction: Jump To Location
+// Function:    pc = address
+uint8_t olc6502::JMP() {
+	progcount_reg = addr_abs;
+	return 0;
+}
+// 37 
+// Instruction: Jump To Sub-Routine
+// Function:    Push current pc to stack, pc = address
+uint8_t olc6502::JSR() {
+	progcount_reg--;
+	write(0x0100 + stkptr_reg, (progcount_reg >> 8) & 0x00FF);
+	stkptr_reg--;
+	write(0x0100 + stkptr_reg, progcount_reg & 0x00FF);
+	stkptr_reg--;
+
+	progcount_reg = addr_abs;
+	return 0;
+}
+// 38
+// Instruction: Load The Accumulator
+// Function:    A = M
+// Flags Out:   N, Z
+uint8_t olc6502::LDA() {
+	fetch();
+
+	accum_reg = fetched;
+	setFlag(N, accum_reg & 0x80);
+	setFlag(Z, accum_reg == 0x00);
+	return 0;
+}
+// 39
+// Instruction: Load The X Register
+// Function:    X = M
+// Flags Out:   N, Z
+uint8_t olc6502::LDX() {
+	fetch();
+	x_reg = fetched;
+	setFlag(N, x_reg & 0x80);
+	setFlag(Z, x_reg == 0x00);
+	return 0;
+}
+// 40
+// Instruction: Load The Y Register
+// Function:    Y = M
+// Flags Out:   N, Z
+uint8_t olc6502::LDY() {
+	fetch();
+	y_reg = fetched;
+	setFlag(N, y_reg & 0x80);
+	setFlag(Z, y_reg == 0x00);
+	return 0;
+}
+// 41
+// instruction: logical shift right
+// LSR shifts all bits right one position. 0 is shifted into bit 7 and the original bit 0 is shifted into the Carry.
+// flages out : Z,N ,C
+uint8_t olc6502::LSR() {
+	fetch();
+	setFlag(C, fetched & 0x0001);
+	uint16_t temp = fetched >> 1;
+	setFlag(Z, (temp && 0x00FF) == 0x0000);
+	setFlag(N, temp & 0x0080);
+	if (opCodeLookUpTable[opcode].addrmode == &olc6502::IMP) {
+		accum_reg = temp & 0x00FF;
+	}
+	else {
+		write(addr_abs, temp & 0x00FF);
+	}
+
+	return 0;
+
+
+}
+// 42
+//NOP is a mnemonic that stands for No Operation. This instruction does nothing during execution
+uint8_t olc6502::NOP() {
+	switch (opcode) {
+		case 0x1C:
+		case 0x3C:
+		case 0x5C:
+		case 0x7C:
+		case 0xDC:
+		case 0xFC:
+			return 1;
+	}
+	return 0;
+
+}
+// 43
+// Instruction: Bitwise Logic OR
+// Function:    A = A | M
+// Flags Out:   N, Z
+uint8_t olc6502::ORA() {
+	fetch();
+	accum_reg = accum_reg | fetched;
+	setFlag(Z, accum_reg == 0x00);
+	setFlag(N, accum_reg & 0x80);
+	return 0;
+}
+// 44
+// Instruction: Push Status Register to Stack
+// Function:    status -> stack
+// Note:        Break flag is set to 1 before push
+uint8_t olc6502::PHP() {
+	write(0x0100 + stkptr_reg, status_reg | B | U);
+	stkptr_reg--;
+	setFlag(B, 0);
+	setFlag(U, 0);
+	return 0;
+}
+// 45
+// Instruction: Pop Status Register off Stack
+// Function:    Status <- stack
+uint8_t olc6502::PLP() {
+	stkptr_reg++;
+	status_reg = read(0x0100 + stkptr_reg);
+	setFlag(U, 1);
+	return 0;
+}
+
+// 46
+//The rotate left (ROL) and rotate through carry left (RCL) instructions shift all the bits toward more-significant bit positions,
+//except for the most-significant bit, which is rotated to the least significant bit location
+// set flage : N,Z,C;
+uint8_t olc6502::ROL() {
+	fetch();
+	uint16_t temp = (uint16_t)(fetched << 1) | getFlag(C);
+	setFlag(C, temp & 0xFF00);
+	setFlag(Z, (temp & 0x00FF) == 0x0000);
+	setFlag(N, temp & 0x0080);
+	if (opCodeLookUpTable[opcode].addrmode == &olc6502::IMP) {
+		accum_reg = temp & 0x00FF;
+	}
+	else {
+		write(addr_abs, temp & 0x00FF);
+	}
+		
+	return 0;
+}
+// 47
+//The rotate right (ROR) and rotate through carry right (RCR) instructions shift all the bits toward less significant bit positions
+// except for the least-significant bit, which is rotated to the most-significant bit location
+//set flage : C,N,Z
+uint8_t olc6502::ROR() {
+	fetch();
+	uint16_t temp = (uint16_t)(fetched >> 1) | (getFlag(C) << 7);
+	setFlag(C, temp & 0xFF00);
+	setFlag(Z, temp & 0x00FF == 0x0000);
+	setFlag(N, temp & 0x0080);
+	if (opCodeLookUpTable[opcode].addrmode == &olc6502::IMP) {
+		accum_reg = temp & 0x00FF;
+	}
+	else {
+		write(addr_abs, temp & 0x00FF);
+	}
+		
+	return 0;
+}
+// 48
+//RTS    ---   RTS stands for Return from Subroutine
+//RTS is one of the 6502 Subroutine Operations of 6502 instruction-set.
+//The function of RTS is to pulls the top two bytes off the stack (low byte first)
+// and transfers program control to that address+1 i.e.return (RTS)  from the calling subroutine
+uint8_t olc6502::RTS() {
+	stkptr_reg++;
+	progcount_reg = (uint16_t)read(0x0100 + stkptr_reg);
+	stkptr_reg++;
+	progcount_reg |= (uint16_t)read(0x0100 + stkptr_reg) << 8;
+	progcount_reg++;
+	return 0;
+}
+
+
+// 49
+// Instruction: Store Accumulator at Address
+// Function:    M = A
+uint8_t olc6502::STA() {
+	write(addr_abs, accum_reg);
+	return 0;
+}
+// 50
+// Instruction: Store X Register at Address
+// Function:    M = X
+uint8_t olc6502::STX() {
+	write(addr_abs, x_reg);
+	return 0;
+}
+// 51
+// Instruction: Store Y Register at Address
+// Function:    M = Y
+uint8_t olc6502::STY() {
+	write(addr_abs, y_reg);
+	return 0;
+}
+// 52
+// Instruction: Transfer Accumulator to X Register
+// Function:    X = A
+// Flags Out:   N, Z
+uint8_t olc6502::TAX() {
+	x_reg = accum_reg;
+	setFlag(N, x_reg & 0x80);
+	setFlag(Z, x_reg == 0x00);
+	return 0;
+}
+// 53
+// Instruction: Transfer Accumulator to Y Register
+// Function:    Y = A
+// Flags Out:   N, Z
+uint8_t olc6502::TAY() {
+	y_reg = accum_reg;
+	setFlag(N, y_reg & 0x80);
+	setFlag(Z, y_reg == 0x00);
+	return 0;
+}
+// 54
+// Instruction: Transfer Stack Pointer to X Register
+// Function:    X = stack pointer
+// Flags Out:   N, Z
+uint8_t olc6502::TSX() {
+	x_reg = stkptr_reg;
+	setFlag(N, x_reg & 0x80);
+	setFlag(Z, x_reg == 0x00);
+	return 0;
+}
+// 55
+// Instruction: Transfer X Register to Accumulator
+// Function:    A = X
+// Flags Out:   N, Z
+uint8_t olc6502::TXA() {
+	accum_reg = x_reg;
+	setFlag(N, accum_reg & 0x80);
+	setFlag(Z, accum_reg == 0x00);
+	return 0;
+}
+// 56
+// Instruction: Transfer X Register to Stack Pointer
+// Function:    stack pointer = X
+uint8_t olc6502::TXS() {
+	stkptr_reg = x_reg;
+	return 0;
+}
+// 57
+// Instruction: Transfer Y Register to Accumulator
+// Function:    A = Y
+// Flags Out:   N, Z
+uint8_t olc6502::TYA() {
+	accum_reg = y_reg;
+	setFlag(Z, accum_reg == 0x00);
+	setFlag(N, accum_reg & 0x80);
+	return 0;
+}
+
+// 58
+// all illegal opcodes capturing
+uint8_t olc6502::XXX() {
+	return 0;
+}
