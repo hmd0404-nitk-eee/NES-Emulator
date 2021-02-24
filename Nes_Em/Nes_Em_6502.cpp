@@ -107,12 +107,17 @@ void Nes_Em_6502::connectBus(Bus* busAddr) {
 }
 
 uint8_t Nes_Em_6502::read(uint16_t addr) {
-	return bus->read(addr);
+	return bus->cpu_read(addr);
 }
 
 void Nes_Em_6502::write(uint16_t addr, uint8_t data) {
-	bus->write(addr, data);
+	bus->cpu_write(addr, data);
 	return;
+}
+
+bool Nes_Em_6502::complete()
+{
+	return cycles == 0;
 }
 
 void Nes_Em_6502::clock() {

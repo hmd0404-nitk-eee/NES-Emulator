@@ -48,6 +48,8 @@ public:
 	void interupt_req();			//Interupts that can be ignored
 	void non_mask_interupt_req();	//Interupts that must be handled and cannot be ignored
 
+	bool complete();
+
 	//Construstor and Destructors for Nes_Em_6502 class
 	Nes_Em_6502();
 	~Nes_Em_6502();
