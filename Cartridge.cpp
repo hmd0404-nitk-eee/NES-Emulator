@@ -15,17 +15,17 @@ Cartridge::Cartridge(const string& sFileName)
 		uint8_t tv_system2;
 		char unused[5];
 	} header;
-
+  bImageValid = false;
 ifstream ifs;
 ifs.open(sFileName, ifstream::binary);
 if(ifs.is_open())
 {
-  ifs.read((char*)&header, sizedof(sHeader));
+  ifs.read((char*)&header, sizeof(sHeader));
 
   if(header.mapper1 & 0x04)
-      ifs.seeksg(512, ios_base::cur);
+      ifs.seekg(512, ios_base::cur);
 
-  nMapperID = ((header.mapper2 >> 4) <<4) | (header.mapper1 >>4)
+  nMapperID = ((header.mapper2 >> 4) <<4) | (header.mapper1 >>4);
 
   uint8_t nFileType = 1;
   if(nFileType == 0)
@@ -48,7 +48,7 @@ if(ifs.is_open())
   }
   switch (nMapperID)
 	{
-		case 0: pMapper = std::make_shared<Mapper_000>(nPRGBanks, nCHRBanks); break;
+		case 0: pMapper = make_shared<Mapper_000>(nPRGBanks, nCHRBanks); break;
 	}
 
 	
@@ -61,6 +61,10 @@ if(ifs.is_open())
 Cartridge::~Cartridge()
 {
 
+}
+bool Cartridge::ImageValid()
+{
+	return bImageValid;
 }
 
 bool Cartridge::cpuRead(uint16_t addr, uint8_t & data)

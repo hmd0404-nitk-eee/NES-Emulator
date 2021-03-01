@@ -14,7 +14,7 @@ private:
   uint8_t tblName[2][1024];
   uint8_t tblPalette[32];
 
-
+public:
   uint8_t cpuRead(uint16_t addr, bool rdonly = false);
   void cpuWrite(uint16_t addr, uint8_t data);
 
@@ -22,7 +22,7 @@ private:
   void ppuWrite(uint16_t addr, uint8_t data);
 
 private:
-  shared_ptr<Cartride> cart;
+  shared_ptr<Cartridge> cart;
 
 
 public:

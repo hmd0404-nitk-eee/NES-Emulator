@@ -13,7 +13,7 @@ public:
 public:
   olc6502 cpu;
   olc2C02 ppu;
-  array<uint8_t, 2*1024> cpuRam;
+  array<uint8_t, 2*1024> ram;
   shared_ptr<Cartridge> cart;
 
 public:

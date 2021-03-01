@@ -1,5 +1,11 @@
 #pragma once
-
+#include <vector>
+#include <string>
+#include <map>
+using namespace std;
+#ifdef LOGMODE
+#include <stdio.h>
+#endif
 class Bus;
 
 class olc6502
@@ -8,7 +14,8 @@ public:
   olc6502();
   ~olc6502();
 
-  void ConnectBus(Bus *n) { bus = n}
+  void ConnectBus(Bus *n) { bus = n;}
+  map<uint16_t, std::string> disassemble(uint16_t nStart, uint16_t nStop);
   enum FLAGS6502
 {
   C = (1 << 0),	// Carry Bit
@@ -53,14 +60,15 @@ public:
   uint8_t STX();	uint8_t STY();	uint8_t TAX();	uint8_t TAY();
   uint8_t TSX();	uint8_t TXA();	uint8_t TXS();	uint8_t TYA();
 
-  uin8_t XXX();
+  uint8_t XXX();
 
   void clock();
+  bool complete();
   void reset();
   void irq();
   void nmi();
 
-  uint8_t fetch()
+  uint8_t fetch();
   uint8_t fetched = 0x00;
 
   uint16_t addr_abs = 0x0000;
@@ -70,11 +78,11 @@ public:
 
 private:
   Bus *bus = nullptr;
-  uin8_t cpuRead(uint16_t a);
-  void cpuWrite(uint16_t a, uin8_t d);
+  uint8_t cpuRead(uint16_t a);
+  void cpuWrite(uint16_t a, uint8_t d);
 
-  uin8_t ppuRead(uint16_t a);
-  void ppuWrite(uint16_t a, uin8_t d);
+  uint8_t ppuRead(uint16_t a);
+  void ppuWrite(uint16_t a, uint8_t d);
   // Convenience functions to access status register
   uint8_t GetFlag(FLAGS6502 f);
   void    SetFlag(FLAGS6502 f, bool v);
@@ -89,5 +97,8 @@ private:
 
 
   vector<INSTRUCTION> lookup;
-
+  #ifdef LOGMODE
+private:
+	FILE* logfile = nullptr;
+  #endif
 };
