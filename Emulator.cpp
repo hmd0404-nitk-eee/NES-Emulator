@@ -1,8 +1,8 @@
 #include <iostream>
 #include <sstream>
 
-#include "Bus.h"
-#include "olc6502.h"
+
+#include "olc6502.hpp"
 
 #define OLC_PGE_APPLICATION
 #include "olcPixelGameEngine.h"
@@ -53,24 +53,24 @@ private:
 	{
 		std::string status = "STATUS: ";
 		DrawString(x , y , "STATUS:", olc::WHITE);
-		DrawString(x  + 64, y, "N", nes.cpu.status & olc6502::N ? olc::GREEN : olc::RED);
-		DrawString(x  + 80, y , "V", nes.cpu.status & olc6502::V ? olc::GREEN : olc::RED);
-		DrawString(x  + 96, y , "-", nes.cpu.status & olc6502::U ? olc::GREEN : olc::RED);
-		DrawString(x  + 112, y , "B", nes.cpu.status & olc6502::B ? olc::GREEN : olc::RED);
-		DrawString(x  + 128, y , "D", nes.cpu.status & olc6502::D ? olc::GREEN : olc::RED);
-		DrawString(x  + 144, y , "I", nes.cpu.status & olc6502::I ? olc::GREEN : olc::RED);
-		DrawString(x  + 160, y , "Z", nes.cpu.status & olc6502::Z ? olc::GREEN : olc::RED);
-		DrawString(x  + 178, y , "C", nes.cpu.status & olc6502::C ? olc::GREEN : olc::RED);
-		DrawString(x , y + 10, "PC: $" + hex(nes.cpu.pc, 4));
-		DrawString(x , y + 20, "A: $" +  hex(nes.cpu.a, 2) + "  [" + std::to_string(nes.cpu.a) + "]");
-		DrawString(x , y + 30, "X: $" +  hex(nes.cpu.x, 2) + "  [" + std::to_string(nes.cpu.x) + "]");
-		DrawString(x , y + 40, "Y: $" +  hex(nes.cpu.y, 2) + "  [" + std::to_string(nes.cpu.y) + "]");
-		DrawString(x , y + 50, "Stack P: $" + hex(nes.cpu.stkp, 4));
+		DrawString(x  + 64, y, "N", nes.cpu->status & olc6502::N ? olc::GREEN : olc::RED);
+		DrawString(x  + 80, y , "V", nes.cpu->status & olc6502::V ? olc::GREEN : olc::RED);
+		DrawString(x  + 96, y , "-", nes.cpu->status & olc6502::U ? olc::GREEN : olc::RED);
+		DrawString(x  + 112, y , "B", nes.cpu->status & olc6502::B ? olc::GREEN : olc::RED);
+		DrawString(x  + 128, y , "D", nes.cpu->status & olc6502::D ? olc::GREEN : olc::RED);
+		DrawString(x  + 144, y , "I", nes.cpu->status & olc6502::I ? olc::GREEN : olc::RED);
+		DrawString(x  + 160, y , "Z", nes.cpu->status & olc6502::Z ? olc::GREEN : olc::RED);
+		DrawString(x  + 178, y , "C", nes.cpu->status & olc6502::C ? olc::GREEN : olc::RED);
+		DrawString(x , y + 10, "PC: $" + hex(nes.cpu->pc, 4));
+		DrawString(x , y + 20, "A: $" +  hex(nes.cpu->a, 2) + "  [" + std::to_string(nes.cpu->a) + "]");
+		DrawString(x , y + 30, "X: $" +  hex(nes.cpu->x, 2) + "  [" + std::to_string(nes.cpu->x) + "]");
+		DrawString(x , y + 40, "Y: $" +  hex(nes.cpu->y, 2) + "  [" + std::to_string(nes.cpu->y) + "]");
+		DrawString(x , y + 50, "Stack P: $" + hex(nes.cpu->stkp, 4));
 	}
 
 	void DrawCode(int x, int y, int nLines)
 	{
-		auto it_a = mapAsm.find(nes.cpu.pc);
+		auto it_a = mapAsm.find(nes.cpu->pc);
 		int nLineY = (nLines >> 1) * 10 + y;
 		if (it_a != mapAsm.end())
 		{
@@ -85,7 +85,7 @@ private:
 			}
 		}
 
-		it_a = mapAsm.find(nes.cpu.pc);
+		it_a = mapAsm.find(nes.cpu->pc);
 		nLineY = (nLines >> 1) * 10 + y;
 		if (it_a != mapAsm.end())
 		{
@@ -111,7 +111,7 @@ private:
 		nes.insertCartridge(cart);
 					
 		// Extract dissassembly
-		mapAsm = nes.cpu.disassemble(0x0000, 0xFFFF);
+		mapAsm = nes.cpu->disassemble(0x0000, 0xFFFF);
 
 		// Reset NES
 		nes.reset();
@@ -141,11 +141,11 @@ private:
 			if (GetKey(olc::Key::C).bPressed)
 			{
 				// Clock enough times to execute a whole CPU instruction
-				do { nes.clock(); } while (!nes.cpu.complete());
+				do { nes.clock(); } while (!nes.cpu->complete());
 				// CPU clock runs slower than system clock, so it may be
 				// complete for additional system clock cycles. Drain
 				// those out
-				do { nes.clock(); } while (nes.cpu.complete());
+				do { nes.clock(); } while (nes.cpu->complete());
 			}
 
 			// Emulate one whole frame
@@ -154,7 +154,7 @@ private:
 				// Clock enough times to draw a single frame
 				do { nes.clock(); } while (!nes.ppu.frame_complete);
 				// Use residual clock cycles to complete current instruction
-				do { nes.clock(); } while (!nes.cpu.complete());
+				do { nes.clock(); } while (!nes.cpu->complete());
 				// Reset frame completion flag
 				nes.ppu.frame_complete = false;
 			}
