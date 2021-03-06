@@ -9,12 +9,12 @@ using namespace std;
 
 class Cartridge{
 public:
-  Cartridge(const string& sFileName);
+  Cartridge(string sFileName);
   ~Cartridge();
 
 public:
 	bool ImageValid();
-
+  bool bImageValid = false;
 	enum MIRROR
 	{
 		HORIZONTAL,
@@ -25,7 +25,7 @@ public:
 
 
 private:
-  bool bImageValid = false;
+  
   vector <uint8_t> vPRGMemory;
   vector <uint8_t> vCHRMemory;
 
@@ -44,7 +44,7 @@ public:
     bool ppuWrite(uint16_t addr, uint8_t data);
 };
 
-Cartridge::Cartridge(const string& sFileName)
+Cartridge::Cartridge(string sFileName)
 {
   struct sHeader
 	{
@@ -58,7 +58,7 @@ Cartridge::Cartridge(const string& sFileName)
 		uint8_t tv_system2;
 		char unused[5];
 	} header;
-  bImageValid = false;
+
 ifstream ifs;
 ifs.open(sFileName, ifstream::binary);
 if(ifs.is_open())
@@ -89,14 +89,13 @@ if(ifs.is_open())
   {
 
   }
-  cout<<"here";
   switch (nMapperID)
 	{
 		case 0: pMapper = new Mapper_000(nPRGBanks, nCHRBanks);
     break;
 	}
 
-	
+	bImageValid=true;
  ifs.close();
 
 

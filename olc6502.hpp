@@ -24,6 +24,7 @@ public:
   array<uint8_t, 2*1024> ram;
   //shared_ptr<Cartridge> cart;
   Cartridge *rom;
+  uint8_t controller[2];
 
 public:
   void cpuWrite(uint16_t addr, uint8_t data);
@@ -37,6 +38,17 @@ public:
 
 private:
   uint32_t nSystemClockCounter = 0;
+  uint8_t controller_state[2];
+  
+private:
+
+	uint8_t dma_page = 0x00;
+	uint8_t dma_addr = 0x00;
+	uint8_t dma_data = 0x00;
+
+	bool dma_dummy = true;
+
+	bool dma_transfer = false;
 
 };
 
@@ -160,6 +172,19 @@ void Bus::cpuWrite(uint16_t addr, uint8_t data)
   else if(addr >= 0x2000 && addr<= 0x3FFF){
     ppu.cpuWrite(addr & 0x0007, data);
   }
+  else if (addr == 0x4014)
+	{
+		// A write to this address initiates a DMA transfer
+		dma_page = data;
+		dma_addr = 0x00;
+		dma_transfer = true;						
+	}
+	else if (addr >= 0x4016 && addr <= 0x4017)
+	{
+		// "Lock In" controller state at this time
+		controller_state[addr & 0x0001] = controller[addr & 0x0001];
+	}
+	
 }
 
 uint8_t Bus::cpuRead(uint16_t addr, bool bReadOnly)
@@ -174,6 +199,12 @@ uint8_t Bus::cpuRead(uint16_t addr, bool bReadOnly)
     else if(addr>=0x2000 && addr <=0x3FFF){
       data=ppu.cpuRead(addr & 0x0007, bReadOnly);
     }
+    	else if (addr >= 0x4016 && addr <= 0x4017)
+	{
+		// Read out the MSB of the controller status word
+		data = (controller_state[addr & 0x0001] & 0x80) > 0;
+		controller_state[addr & 0x0001] <<= 1;
+	}
     return data;
 }
 

@@ -110,6 +110,7 @@ private:
 	    std::string filename;
 		std::cout<<"Enter filename: ";
 		std::cin>>filename;
+		//filename="nestest.nes";
 		rom=new Cartridge(filename);
 	 if (!rom->ImageValid())
 	{
