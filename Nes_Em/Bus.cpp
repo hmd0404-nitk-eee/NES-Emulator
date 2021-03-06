@@ -37,7 +37,7 @@ uint8_t Bus::cpu_read(uint16_t addr) {
 		data = cpu_ram[addr & 0x07FF];
 	}
 	else if(addr >= 0x2000 && addr <= 0x3FFF) {
-		data = ppu.cpu_read(addr & 0x0007);
+		data = ppu.cpuRead(addr & 0x0007);
 	}
 
 	return data;
@@ -55,7 +55,7 @@ void Bus::cpu_write(uint16_t addr, uint8_t data) {
 	else if (addr >= 0x2000 && addr <= 0x3FFF) {
 		//PPU has only 8 places to store value and a larger addressable range
 		//Hence again we using Mirroring
-		ppu.cpu_write(addr & 0x0007, data);
+		ppu.cpuWrite(addr & 0x0007, data);
 	}
 	return;
 }

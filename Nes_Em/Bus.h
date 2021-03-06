@@ -13,7 +13,7 @@ public:
 	Nes_Em_6502 cpu;
 
 	//--->The PPU: 2CO2
-	Nes_Em_2CO2 ppu;
+	Nes_Em_2C02 ppu;
 	
 	//The cartridge 
 	std::shared_ptr<Cartridge> cart;
