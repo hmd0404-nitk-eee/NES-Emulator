@@ -7,7 +7,7 @@
 #define OLC_PGE_APPLICATION
 #include "olcPixelGameEngine.h"
 
-
+using namespace std;
 
 class Demo_olc2C02 : public olc::PixelGameEngine
 {
@@ -17,9 +17,10 @@ public:
 private: 
 	// The NES
 	Bus nes;
-	std::shared_ptr<Cartridge> cart;
+	//std::shared_ptr<Cartridge> cart;
 	bool bEmulationRun = false;
 	float fResidualTime = 0.0f;
+	Cartridge *rom;
 
 private: 
 	// Support Utilities
@@ -103,13 +104,21 @@ private:
 	bool OnUserCreate()
 	{
 		// Load the cartridge
-		cart = std::make_shared<Cartridge>("nestest.nes");
-		if (!cart->ImageValid())
-			return false;
-
+		//cart = std::make_shared<Cartridge>("nestest.nes");
+		//if (!cart->ImageValid())
+		//	return false;
+	    std::string filename;
+		std::cout<<"Enter filename: ";
+		std::cin>>filename;
+		rom=new Cartridge(filename);
+	 if (!rom->ImageValid())
+	{
+		std::cout << "ERROR! INVALID ROM PATH!\n";
+		return false;
+	}
 		// Insert into NES
-		nes.insertCartridge(cart);
-					
+		nes.connect_ROM(rom);
+				
 		// Extract dissassembly
 		mapAsm = nes.cpu->disassemble(0x0000, 0xFFFF);
 
@@ -180,6 +189,7 @@ int main()
 {
 	Demo_olc2C02 demo;
 	demo.Construct(780, 480, 2, 2);
+	std::cout<<"sup";
 	demo.Start();
 	return 0;
 }

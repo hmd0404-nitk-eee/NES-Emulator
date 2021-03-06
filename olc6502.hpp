@@ -22,14 +22,16 @@ public:
   olc6502 *cpu;
   olc2C02 ppu;
   array<uint8_t, 2*1024> ram;
-  shared_ptr<Cartridge> cart;
+  //shared_ptr<Cartridge> cart;
+  Cartridge *rom;
 
 public:
   void cpuWrite(uint16_t addr, uint8_t data);
   uint8_t cpuRead(uint16_t addr, bool bReadOnly=false);
 
 public:
-  void insertCartridge(const shared_ptr<Cartridge>& cartridge);
+  //void insertCartridge(const shared_ptr<Cartridge>& cartridge);
+  void connect_ROM(Cartridge*);
   void reset();
   void clock();
 
@@ -46,7 +48,7 @@ public:
   olc6502();
   ~olc6502();
 
-  void ConnectBus(Bus *n) { bus = n;}
+  void ConnectBus(Bus*);
   map<uint16_t, std::string> disassemble(uint16_t nStart, uint16_t nStop);
   enum FLAGS6502
 {
@@ -145,12 +147,12 @@ Bus::Bus()
 
 Bus::~Bus()
 {
-  delete cpu;
+  //delete cpu;
 }
 
 void Bus::cpuWrite(uint16_t addr, uint8_t data)
 {
-  if (cart->cpuWrite(addr, data)){
+  if (rom->cpuWrite(addr, data)){
 
   }
   else if(addr>= 0x0000 && addr <= 0x1FFF)
@@ -163,7 +165,7 @@ void Bus::cpuWrite(uint16_t addr, uint8_t data)
 uint8_t Bus::cpuRead(uint16_t addr, bool bReadOnly)
 {
   uint8_t data=0x00;
-  if(cart->cpuRead(addr,data))
+  if(rom->cpuRead(addr,data))
   {
 
   }
@@ -175,12 +177,17 @@ uint8_t Bus::cpuRead(uint16_t addr, bool bReadOnly)
     return data;
 }
 
-void Bus::insertCartridge(const std::shared_ptr<Cartridge>& cartridge)
+/*void Bus::insertCartridge(const std::shared_ptr<Cartridge>& cartridge)
 {
   this->cart=cartridge;
   ppu.ConnectCartridge(cartridge);
 }
-
+*/
+void Bus::connect_ROM(Cartridge* rom)
+{
+	this->rom = rom;
+	ppu.ConnectCartridge(rom);
+}
 void Bus::reset(){
   cpu->reset();
   nSystemClockCounter=0;
@@ -221,7 +228,10 @@ olc6502::olc6502()
 		{ "BEQ", &a::BEQ, &a::REL, 2 },{ "SBC", &a::SBC, &a::IZY, 5 },{ "???", &a::XXX, &a::IMP, 2 },{ "???", &a::XXX, &a::IMP, 8 },{ "???", &a::NOP, &a::IMP, 4 },{ "SBC", &a::SBC, &a::ZPX, 4 },{ "INC", &a::INC, &a::ZPX, 6 },{ "???", &a::XXX, &a::IMP, 6 },{ "SED", &a::SED, &a::IMP, 2 },{ "SBC", &a::SBC, &a::ABY, 4 },{ "NOP", &a::NOP, &a::IMP, 2 },{ "???", &a::XXX, &a::IMP, 7 },{ "???", &a::NOP, &a::IMP, 4 },{ "SBC", &a::SBC, &a::ABX, 4 },{ "INC", &a::INC, &a::ABX, 7 },{ "???", &a::XXX, &a::IMP, 7 },
 	};
 }
-
+void olc6502::ConnectBus(Bus* bus)
+{
+	this->bus = bus;
+}
 olc6502::~olc6502()
 {
 

@@ -33,7 +33,7 @@ private:
   uint8_t nPRGBanks = 0;
   uint8_t nCHRBanks = 0;
 
-  shared_ptr<Mapper> pMapper;
+  Mapper *pMapper=nullptr;
 
 
 public:
@@ -89,9 +89,11 @@ if(ifs.is_open())
   {
 
   }
+  cout<<"here";
   switch (nMapperID)
 	{
-		case 0: pMapper = make_shared<Mapper_000>(nPRGBanks, nCHRBanks); break;
+		case 0: pMapper = new Mapper_000(nPRGBanks, nCHRBanks);
+    break;
 	}
 
 	

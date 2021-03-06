@@ -23,11 +23,11 @@ public:
   void ppuWrite(uint16_t addr, uint8_t data);
 
 private:
-  shared_ptr<Cartridge> cart;
 
+  Cartridge* rom;
 
 public:
-  void ConnectCartridge(const shared_ptr<Cartridge>& cartridge);
+  void ConnectCartridge(Cartridge*);
   void clock();
 
 private: 
@@ -51,10 +51,10 @@ private:
 
 olc2C02::olc2C02()
 {
-	sprNameTable[0]=olc::Sprite(256, 240);
-	sprNameTable[1]= olc::Sprite(256, 240) ;
-	sprPatternTable[0] = olc::Sprite(128, 128);
-	sprPatternTable[1]=olc::Sprite(128, 128) ;
+	//sprNameTable[0]=olc::Sprite(256, 240);
+	//sprNameTable[1]= olc::Sprite(256, 240) ;
+	//sprPatternTable[0] = olc::Sprite(128, 128);
+	//sprPatternTable[1]=olc::Sprite(128, 128) ;
 	palScreen[0x00] = olc::Pixel(84, 84, 84);
 	palScreen[0x01] = olc::Pixel(0, 30, 116);
 	palScreen[0x02] = olc::Pixel(8, 16, 144);
@@ -197,7 +197,7 @@ void olc2C02::cpuWrite(uint16_t addr, uint8_t data)
 uint8_t olc2C02::ppuRead(uint16_t addr, bool rdonly)
 {
 	uint8_t data=0x00;
-	if(cart->ppuRead(addr, data))
+	if(rom->ppuRead(addr, data))
 	{
 
 	}
@@ -206,14 +206,14 @@ uint8_t olc2C02::ppuRead(uint16_t addr, bool rdonly)
 
 void olc2C02::ppuWrite(uint16_t addr, uint8_t data)
 {
-	if(cart->ppuWrite(addr, data))
+	if(rom->ppuWrite(addr, data))
 	{
 
 	}
 }
 
-void olc2C02::ConnectCartridge(const shared_ptr<Cartridge>& cartridge){
-	this->cart=cartridge;
+void olc2C02::ConnectCartridge(Cartridge *cart){
+	this->rom=cart;
 }
 void olc2C02::clock()
 {
