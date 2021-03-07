@@ -155,6 +155,8 @@ Bus::Bus()
   for(auto &i :ram) i = 0x00;
   cpu = new olc6502();
   cpu->ConnectBus(this);
+  controller[0] = 0;
+	controller[1] = 0;
 }
 
 Bus::~Bus()
@@ -164,16 +166,22 @@ Bus::~Bus()
 
 void Bus::cpuWrite(uint16_t addr, uint8_t data)
 {
+  int i=0;
+  
   if (rom->cpuWrite(addr, data)){
-
+     
   }
-  else if(addr>= 0x0000 && addr <= 0x1FFF)
+  else if(addr <= 0x1FFF){
+   
     ram[addr & 0x07FF] = data;
+  }
   else if(addr >= 0x2000 && addr<= 0x3FFF){
+    cout<<"yues";
     ppu.cpuWrite(addr & 0x0007, data);
   }
   else if (addr == 0x4014)
 	{
+    cout<<addr<<" d ";
 		// A write to this address initiates a DMA transfer
 		dma_page = data;
 		dma_addr = 0x00;
@@ -282,7 +290,6 @@ void olc6502::clock()
   {
     opcode = cpuRead(pc);
     pc++;
-
     cycles = lookup[opcode].cycles;
     uint8_t additional_cycles1 = (this->*lookup[opcode].addrmode)();
 
@@ -315,16 +322,17 @@ void olc6502::reset(){
 
 void olc6502::irq()
 {
+  cout<<"irq";
   if (GetFlag(I) == 0){
-    cpuWrite(0x0100 + stkp, (pc>>8)& 0x00FF);
+    cpuWrite(0x100 + stkp, (pc>>8)& 0xFF);
     stkp--;
-    cpuWrite(0x0100 + stkp,  pc & 0x00FF);
+    cpuWrite(0x100 + stkp,  pc & 0xFF);
     stkp--;
 
     SetFlag(B, 0);
     SetFlag(U, 1);
     SetFlag(I, 1);
-    cpuWrite(0x0100 + stkp, status);
+    cpuWrite(0x100 + stkp, status);
     stkp--;
 
     addr_abs = 0xFFFE;
@@ -338,7 +346,7 @@ void olc6502::irq()
 
 void olc6502::nmi()
 {
-
+    cout<<"nmi";
     cpuWrite(0x0100 + stkp, (pc>>8)& 0x00FF);
     stkp--;
     cpuWrite(0x0100 + stkp,  pc & 0x00FF);
@@ -702,6 +710,7 @@ uint8_t olc6502::BVS(){
     // Push the accumulator to the top of the Stack
     uint8_t olc6502::PHA()
     {
+      cout<<"pha";
       cpuWrite(0x0100 + stkp, a);
       stkp--;
       return 0;
@@ -735,7 +744,9 @@ uint8_t olc6502::BVS(){
 //22.
     // Program sourced Interrupt
     uint8_t olc6502::BRK(){
+      
       pc++;
+      SetFlag(I, 1);
       cpuWrite(0x0100 + stkp, pc>>8 & 0x00FF);
       stkp--;
       cpuWrite(0x0100 + stkp, pc & 0x00FF);
@@ -859,6 +870,7 @@ uint8_t olc6502::CPY() {
 //N - if new value <0		Z - if new value == 0
 uint8_t olc6502::DEC() {
 	fetch();
+  cout<<"dec";
 	uint8_t temp = fetched - 1;
 	cpuWrite(addr_abs, temp);
 	SetFlag(N, temp & 0x80);
@@ -874,6 +886,7 @@ uint8_t olc6502::DEC() {
 
 uint8_t olc6502::INC() {
 	fetch();
+  cout<<"inc";
 	uint8_t temp = fetched + 1;
 	cpuWrite(addr_abs, temp);
 	SetFlag(N, temp & 0x80);
@@ -892,7 +905,7 @@ uint8_t olc6502::JMP() {
 // Function:    Push current pc to stack, pc = address
 uint8_t olc6502::JSR() {
 	pc--;
-
+  cout<<"jsr";
 	cpuWrite(0x0100 + stkp, (pc >> 8) & 0x00FF);
 	stkp--;
 	cpuWrite(0x0100 + stkp, pc & 0x00FF);
@@ -939,6 +952,7 @@ uint8_t olc6502::LDY() {
 // LSR shifts all bits right one position. 0 is shifted into bit 7 and the original bit 0 is shifted into the Carry.
 // flages out : Z,N ,C
 uint8_t olc6502::LSR() {
+  
 	fetch();
 	SetFlag(C, fetched & 0x0001);
 	temp = fetched >> 1;	
@@ -983,6 +997,7 @@ uint8_t olc6502::ORA() {
 // Function:    status -> stack
 // Note:        Break flag is set to 1 before push
 uint8_t olc6502::PHP() {
+  cout<<"php";
 	cpuWrite(0x0100 + stkp, status | B | U);
 	SetFlag(B, 0);
 	SetFlag(U, 0);
@@ -1004,6 +1019,7 @@ uint8_t olc6502::PLP() {
 //except for the most-significant bit, which is rotated to the least significant bit location
 // set flage : N,Z,C;
 uint8_t olc6502::ROL() {
+  cout<<"rol";
 	fetch();
 	temp = (uint16_t)(fetched << 1) | GetFlag(C);
 	SetFlag(C, temp & 0xFF00);
@@ -1020,6 +1036,7 @@ uint8_t olc6502::ROL() {
 // except for the least-significant bit, which is rotated to the most-significant bit location
 //set flage : C,N,Z
 uint8_t olc6502::ROR() {
+ 
 	fetch();
 	temp = (uint16_t)(GetFlag(C) << 7) | (fetched >> 1);
 	SetFlag(C, fetched & 0x01);
@@ -1051,6 +1068,7 @@ uint8_t olc6502::RTS() {
 // Instruction: Store Accumulator at Address
 // Function:    M = A
 uint8_t olc6502::STA() {
+  cout<<"sta";
 	cpuWrite(addr_abs, a);
 	return 0;
 }
@@ -1058,6 +1076,7 @@ uint8_t olc6502::STA() {
 // Instruction: Store X Register at Address
 // Function:    M = X
 uint8_t olc6502::STX() {
+  cout<<"stx";
 	cpuWrite(addr_abs, x);
 	return 0;
 }
@@ -1065,6 +1084,7 @@ uint8_t olc6502::STX() {
 // Instruction: Store Y Register at Address
 // Function:    M = Y
 uint8_t olc6502::STY() {
+  cout<<"sty";
 	cpuWrite(addr_abs, y);
 	return 0;
 }

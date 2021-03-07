@@ -25,7 +25,7 @@ public:
 
 private:
 
-  Cartridge* rom;
+  Cartridge* rom=nullptr;
 
 public:
   void ConnectCartridge(Cartridge*);
@@ -36,13 +36,13 @@ public:
 private: 
   olc::Pixel  palScreen[0x40];
 	olc::Sprite sprScreen          =   olc::Sprite(256, 240);
-	olc::Sprite sprNameTable[2]; 
+	olc::Sprite sprtblName[2]; 
 	olc::Sprite sprPatternTable[2]; 
 
 public:
 	// Debugging Utilities
 	olc::Sprite& GetScreen();
-	olc::Sprite& GetNameTable(uint8_t i);
+	olc::Sprite& GettblName(uint8_t i);
 	olc::Sprite& GetPatternTable(uint8_t i, uint8_t palette);
 
 	olc::Pixel& GetColourFromPaletteRam(uint8_t palette, uint8_t pixel);
@@ -85,8 +85,8 @@ private:
 	{
 		struct
 		{
-			uint8_t nametable_x : 1;
-			uint8_t nametable_y : 1;
+			uint8_t tblName_x : 1;
+			uint8_t tblName_y : 1;
 			uint8_t increment_mode : 1;
 			uint8_t pattern_sprite : 1;
 			uint8_t pattern_background : 1;
@@ -105,8 +105,8 @@ private:
 
 			uint16_t coarse_x : 5;
 			uint16_t coarse_y : 5;
-			uint16_t nametable_x : 1;
-			uint16_t nametable_y : 1;
+			uint16_t tblName_x : 1;
+			uint16_t tblName_y : 1;
 			uint16_t fine_y : 3;
 			uint16_t unused : 1;
 		};
@@ -115,7 +115,7 @@ private:
 	};
 
 
-	loopy_register vram_addr; // Active "pointer" address into nametable to extract background tile info
+	loopy_register vram_addr; // Active "pointer" address into tblName to extract background tile info
 	loopy_register tram_addr; // Temporary store of information to be "transferred" into "pointer" at various times
 
 	// Pixel offset horizontally
@@ -179,8 +179,8 @@ public:
 
 olc2C02::olc2C02()
 {
-	//sprNameTable[0]=olc::Sprite(256, 240);
-	//sprNameTable[1]= olc::Sprite(256, 240) ;
+	sprtblName[0]=olc::Sprite(256, 240);
+	sprtblName[1]= olc::Sprite(256, 240) ;
 	//sprPatternTable[0] = olc::Sprite(128, 128);
 	//sprPatternTable[1]=olc::Sprite(128, 128) ;
 	palScreen[0x00] = olc::Pixel(84, 84, 84);
@@ -199,7 +199,6 @@ olc2C02::olc2C02()
 	palScreen[0x0D] = olc::Pixel(0, 0, 0);
 	palScreen[0x0E] = olc::Pixel(0, 0, 0);
 	palScreen[0x0F] = olc::Pixel(0, 0, 0);
-
 	palScreen[0x10] = olc::Pixel(152, 150, 152);
 	palScreen[0x11] = olc::Pixel(8, 76, 196);
 	palScreen[0x12] = olc::Pixel(48, 50, 236);
@@ -216,7 +215,6 @@ olc2C02::olc2C02()
 	palScreen[0x1D] = olc::Pixel(0, 0, 0);
 	palScreen[0x1E] = olc::Pixel(0, 0, 0);
 	palScreen[0x1F] = olc::Pixel(0, 0, 0);
-
 	palScreen[0x20] = olc::Pixel(236, 238, 236);
 	palScreen[0x21] = olc::Pixel(76, 154, 236);
 	palScreen[0x22] = olc::Pixel(120, 124, 236);
@@ -233,7 +231,6 @@ olc2C02::olc2C02()
 	palScreen[0x2D] = olc::Pixel(60, 60, 60);
 	palScreen[0x2E] = olc::Pixel(0, 0, 0);
 	palScreen[0x2F] = olc::Pixel(0, 0, 0);
-
 	palScreen[0x30] = olc::Pixel(236, 238, 236);
 	palScreen[0x31] = olc::Pixel(168, 204, 236);
 	palScreen[0x32] = olc::Pixel(188, 188, 236);
@@ -260,9 +257,9 @@ olc::Sprite& olc2C02::GetScreen()
 	return sprScreen;
 }
 
-olc::Sprite & olc2C02::GetNameTable(uint8_t i)
+olc::Sprite & olc2C02::GettblName(uint8_t i)
 {
-	return sprNameTable[i];
+	return sprtblName[i];
 }
 
 olc::Sprite & olc2C02::GetPatternTable(uint8_t i, uint8_t palette)
@@ -352,13 +349,13 @@ uint8_t olc2C02::cpuRead(uint16_t addr, bool rdonly)
 
 
 void olc2C02::cpuWrite(uint16_t addr, uint8_t data)
-{
+{	
 	switch (addr)
 	{
 	case 0x0000: // Control
 		control.reg = data;
-		tram_addr.nametable_x = control.nametable_x;
-		tram_addr.nametable_y = control.nametable_y;
+		tram_addr.tblName_x = control.tblName_x;
+		tram_addr.tblName_y = control.tblName_y;
 		break;
 	case 0x0001: // Mask
 		mask.reg = data;
@@ -410,16 +407,18 @@ void olc2C02::cpuWrite(uint16_t addr, uint8_t data)
 }
 
 uint8_t olc2C02::ppuRead(uint16_t addr, bool rdonly)
-{
-	uint8_t data=0x00;
+{	
+	uint8_t data = 0x00;
 	addr &= 0x3FFF;
-	if(rom->ppuRead(addr, data))
+
+	if (rom->ppuRead(addr, data))
 	{
 
 	}
 	else if (addr >= 0x0000 && addr <= 0x1FFF)
 	{
-
+		// If the cartridge cant map the address, have
+		// a physical location ready here
 		data = tblPattern[(addr & 0x1000) >> 12][addr & 0x0FFF];
 	}
 	else if (addr >= 0x2000 && addr <= 0x3EFF)
@@ -460,15 +459,17 @@ uint8_t olc2C02::ppuRead(uint16_t addr, bool rdonly)
 		if (addr == 0x001C) addr = 0x000C;
 		data = tblPalette[addr] & (mask.grayscale ? 0x30 : 0x3F);
 	}
+
 	return data;
 }
 
 void olc2C02::ppuWrite(uint16_t addr, uint8_t data)
 {
 	addr &= 0x3FFF;
-	if(rom->ppuWrite(addr, data))
+cout<<"yes";
+	if (rom->ppuWrite(addr, data))
 	{
-
+		cout<<"uest";
 	}
 	else if (addr >= 0x0000 && addr <= 0x1FFF)
 	{
@@ -550,7 +551,7 @@ void olc2C02::clock()
 			{
 				vram_addr.coarse_x = 0;
 
-				vram_addr.nametable_x = ~vram_addr.nametable_x;
+				vram_addr.tblName_x = ~vram_addr.tblName_x;
 			}
 			else
 			{
@@ -581,7 +582,7 @@ void olc2C02::clock()
 
 					vram_addr.coarse_y = 0;
 
-					vram_addr.nametable_y = ~vram_addr.nametable_y;
+					vram_addr.tblName_y = ~vram_addr.tblName_y;
 				}
 				else if (vram_addr.coarse_y == 31)
 				{
@@ -602,7 +603,7 @@ void olc2C02::clock()
 
 		if (mask.render_background || mask.render_sprites)
 		{
-			vram_addr.nametable_x = tram_addr.nametable_x;
+			vram_addr.tblName_x = tram_addr.tblName_x;
 			vram_addr.coarse_x = tram_addr.coarse_x;
 		}
 	};
@@ -613,7 +614,7 @@ void olc2C02::clock()
 		if (mask.render_background || mask.render_sprites)
 		{
 			vram_addr.fine_y = tram_addr.fine_y;
-			vram_addr.nametable_y = tram_addr.nametable_y;
+			vram_addr.tblName_y = tram_addr.tblName_y;
 			vram_addr.coarse_y = tram_addr.coarse_y;
 		}
 	};
@@ -702,8 +703,8 @@ void olc2C02::clock()
 				break;
 			case 2:
 
-				bg_next_tile_attrib = ppuRead(0x23C0 | (vram_addr.nametable_y << 11)
-					| (vram_addr.nametable_x << 10)
+				bg_next_tile_attrib = ppuRead(0x23C0 | (vram_addr.tblName_y << 11)
+					| (vram_addr.tblName_x << 10)
 					| ((vram_addr.coarse_y >> 2) << 3)
 					| (vram_addr.coarse_x >> 2));
 
