@@ -1,7 +1,7 @@
 #pragma once
 #include <iostream>
 #include "Mapper.hpp"
-
+using namespace std;
 
 class Mapper_000 : public Mapper
 {
@@ -12,7 +12,7 @@ public:
 
 public:
 	bool cpuMapRead(uint16_t addr, uint32_t &mapped_addr) override;
-	bool cpuMapWrite(uint16_t addr, uint32_t &mapped_addr) override;
+	bool cpuMapWrite(uint16_t addr, uint32_t &mapped_addr, uint8_t data=0) override;
 	bool ppuMapRead(uint16_t addr, uint32_t &mapped_addr) override;
 	bool ppuMapWrite(uint16_t addr, uint32_t &mapped_addr) override;
     
@@ -37,7 +37,7 @@ bool Mapper_000::cpuMapRead(uint16_t addr, uint32_t &mapped_addr)
     return false;
 }
 
-bool Mapper_000::cpuMapWrite(uint16_t addr, uint32_t &mapped_addr){
+bool Mapper_000::cpuMapWrite(uint16_t addr, uint32_t &mapped_addr, uint8_t data){
     
     if(addr >= 0x8000 && addr <= 0xFFFF)
     {
@@ -58,7 +58,6 @@ bool Mapper_000::ppuMapRead(uint16_t addr, uint32_t &mapped_addr){
 }
 
 bool Mapper_000::ppuMapWrite(uint16_t addr, uint32_t &mapped_addr){
-    cout<<addr<<" ";
     if (addr <= 0x1FFF)
 	{
 		if (!nCHRBanks)

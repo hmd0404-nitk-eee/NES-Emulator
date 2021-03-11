@@ -4,13 +4,19 @@
 #include <string>
 #include <fstream>
 #include <vector>
-using namespace std;
 #include "Mapper_000.hpp"
-
+using namespace std;
 class Cartridge{
 public:
-  Cartridge(string sFileName);
+  Cartridge(const string& sFileName);
   ~Cartridge();
+  void reset()
+	{
+		if (pMapper != nullptr)
+		{
+			pMapper->reset();
+		}
+	}
 
 public:
 	bool ImageValid();
@@ -26,8 +32,8 @@ public:
 
 private:
   
-  vector <uint8_t> vPRGMemory;
-  vector <uint8_t> vCHRMemory;
+  std::vector<uint8_t> vPRGMemory;
+  std::vector<uint8_t> vCHRMemory;
 
   uint8_t nMapperID = 0;
   uint8_t nPRGBanks = 0;
@@ -44,7 +50,7 @@ public:
     bool ppuWrite(uint16_t addr, uint8_t data);
 };
 
-Cartridge::Cartridge(string sFileName)
+Cartridge::Cartridge(const string& sFileName)
 {
   struct sHeader
 	{
@@ -58,11 +64,12 @@ Cartridge::Cartridge(string sFileName)
 		uint8_t tv_system2;
 		char unused[5];
 	} header;
-
+bImageValid = false;
 ifstream ifs;
 ifs.open(sFileName, ifstream::binary);
 if(ifs.is_open())
 {
+
   ifs.read((char*)&header, sizeof(sHeader));
 
   if(header.mapper1 & 0x04)
@@ -70,6 +77,14 @@ if(ifs.is_open())
 
   nMapperID = ((header.mapper2 >> 4) <<4) | (header.mapper1 >>4);
 
+if (header.mapper1 & 1)
+	{
+		mirror = VERTICAL;
+	}
+	else
+	{
+		mirror = HORIZONTAL;
+	}
   uint8_t nFileType = 1;
   if(nFileType == 0)
   {
@@ -82,8 +97,17 @@ if(ifs.is_open())
     ifs.read((char*)vPRGMemory.data(), vPRGMemory.size());
 
     nCHRBanks = header.chr_rom_chunks;
-    vCHRMemory.resize(nCHRBanks * 8192);
-    ifs.read((char*)vPRGMemory.data(), vPRGMemory.size());
+    if (nCHRBanks == 0)
+			{
+				// Create CHR RAM
+				vCHRMemory.resize(8192);
+			}
+			else
+			{
+				// Allocate for ROM
+				vCHRMemory.resize(nCHRBanks * 8192);
+			}
+    ifs.read((char*)vCHRMemory.data(), vCHRMemory.size());
   }
   if(nFileType == 2)
   {
@@ -98,8 +122,8 @@ if(ifs.is_open())
 	bImageValid=true;
  ifs.close();
 
-
 }
+
 }
 
 Cartridge::~Cartridge()

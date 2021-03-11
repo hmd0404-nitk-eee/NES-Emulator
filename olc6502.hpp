@@ -28,7 +28,7 @@ public:
 
 public:
   void cpuWrite(uint16_t addr, uint8_t data);
-  uint8_t cpuRead(uint16_t addr, bool bReadOnly=false);
+  uint8_t cpuRead(uint16_t addr);
 
 public:
   //void insertCartridge(const shared_ptr<Cartridge>& cartridge);
@@ -61,7 +61,7 @@ public:
   ~olc6502();
 
   void ConnectBus(Bus*);
-  map<uint16_t, std::string> disassemble(uint16_t nStart, uint16_t nStop);
+  //map<uint16_t, std::string> disassemble(uint16_t nStart, uint16_t nStop);
   enum FLAGS6502
 {
   C = (1 << 0),	// Carry Bit
@@ -161,11 +161,12 @@ Bus::Bus()
 
 Bus::~Bus()
 {
-  //delete cpu;
+  delete cpu;
 }
 
 void Bus::cpuWrite(uint16_t addr, uint8_t data)
 {
+  
   int i=0;
   
   if (rom->cpuWrite(addr, data)){
@@ -176,12 +177,10 @@ void Bus::cpuWrite(uint16_t addr, uint8_t data)
     ram[addr & 0x07FF] = data;
   }
   else if(addr >= 0x2000 && addr<= 0x3FFF){
-    cout<<"yues";
     ppu.cpuWrite(addr & 0x0007, data);
   }
   else if (addr == 0x4014)
 	{
-    cout<<addr<<" d ";
 		// A write to this address initiates a DMA transfer
 		dma_page = data;
 		dma_addr = 0x00;
@@ -195,7 +194,7 @@ void Bus::cpuWrite(uint16_t addr, uint8_t data)
 	
 }
 
-uint8_t Bus::cpuRead(uint16_t addr, bool bReadOnly)
+uint8_t Bus::cpuRead(uint16_t addr)
 {
   uint8_t data=0x00;
   if(rom->cpuRead(addr,data))
@@ -205,7 +204,7 @@ uint8_t Bus::cpuRead(uint16_t addr, bool bReadOnly)
   else if(addr>= 0x0000 && addr <= 0x1FFF)
       data = ram[addr & 0x07FF];
     else if(addr>=0x2000 && addr <=0x3FFF){
-      data=ppu.cpuRead(addr & 0x0007, bReadOnly);
+      data=ppu.cpuRead(addr & 0x0007);
     }
     	else if (addr >= 0x4016 && addr <= 0x4017)
 	{
@@ -229,16 +228,79 @@ void Bus::connect_ROM(Cartridge* rom)
 }
 void Bus::reset(){
   cpu->reset();
+  rom->reset();
+  ppu.reset();
   nSystemClockCounter=0;
 }
 
 void Bus::clock(){
-  ppu.clock();
-  if(nSystemClockCounter % 3 ==0)
-  {
-    cpu->clock();
-  }
-  nSystemClockCounter++;
+ ppu.clock();
+
+	// The CPU runs 3 times slower than the PPU so we only call its
+	// clock() function every 3 times this function is called. We
+	// have a global counter to keep track of this.
+	if (nSystemClockCounter % 3 == 0)
+	{
+		// Is the system performing a DMA transfer form CPU memory to 
+		// OAM memory on PPU?...
+		if (dma_transfer)
+		{
+			// ...Yes! We need to wait until the next even CPU clock cycle
+			// before it starts...
+			if (dma_dummy)
+			{
+				// ...So hang around in here each clock until 1 or 2 cycles
+				// have elapsed...
+				if (nSystemClockCounter % 2 == 1)
+				{
+					// ...and finally allow DMA to start
+					dma_dummy = false;
+				}
+			}
+			else
+			{
+				// DMA can take place!
+				if (nSystemClockCounter % 2 == 0)
+				{
+					// On even clock cycles, read from CPU bus
+					dma_data = cpuRead(dma_page << 8 | dma_addr);
+				}
+				else
+				{
+					// On odd clock cycles, write to PPU OAM
+					ppu.pOAM[dma_addr] = dma_data;
+					// Increment the lo byte of the address
+					dma_addr++;
+					// If this wraps around, we know that 256
+					// bytes have been written, so end the DMA
+					// transfer, and proceed as normal
+					if (dma_addr == 0x00)
+					{
+						dma_transfer = false;
+						dma_dummy = true;
+					}
+				}
+			}
+		}
+		else
+		{
+			// No DMA happening, the CPU is in control of its
+			// own destiny. Go forth my friend and calculate
+			// awesomeness for many generations to come...
+			cpu->clock();
+		}		
+	}
+
+	// The PPU is capable of emitting an interrupt to indicate the
+	// vertical blanking period has been entered. If it has, we need
+	// to send that irq to the CPU.
+	if (ppu.nmi)
+	{
+		ppu.nmi = false;
+		cpu->nmi();
+	}
+
+	nSystemClockCounter++;
 }
 
 
@@ -277,18 +339,20 @@ olc6502::~olc6502()
 }
 
 uint8_t olc6502::cpuRead(uint16_t a){
-  return bus->cpuRead(a,false);
+  return bus->cpuRead(a);
 }
 
 void olc6502::cpuWrite(uint16_t a, uint8_t d){
+  
    bus->cpuWrite(a, d);
 }
 
 void olc6502::clock()
 {
-  if (cycles == 0)
+  if (!cycles)
   {
     opcode = cpuRead(pc);
+    SetFlag(U, 1);
     pc++;
     cycles = lookup[opcode].cycles;
     uint8_t additional_cycles1 = (this->*lookup[opcode].addrmode)();
@@ -296,7 +360,7 @@ void olc6502::clock()
     uint8_t additional_cycles2 = (this->*lookup[opcode].operate)();
 
     cycles += (additional_cycles1 & additional_cycles2);
-
+    SetFlag(U, 1);
   }
   cycles--;
 }
@@ -322,7 +386,6 @@ void olc6502::reset(){
 
 void olc6502::irq()
 {
-  cout<<"irq";
   if (GetFlag(I) == 0){
     cpuWrite(0x100 + stkp, (pc>>8)& 0xFF);
     stkp--;
@@ -346,7 +409,6 @@ void olc6502::irq()
 
 void olc6502::nmi()
 {
-    cout<<"nmi";
     cpuWrite(0x0100 + stkp, (pc>>8)& 0x00FF);
     stkp--;
     cpuWrite(0x0100 + stkp,  pc & 0x00FF);
@@ -488,7 +550,7 @@ uint8_t olc6502::IZY(){
   pc++;
   uint16_t low = cpuRead(t & 0x00FF);
   uint16_t high = cpuRead((t+1) & 0x00FF);
-  pc++;
+ 
   addr_abs = (high << 8) | low;
   addr_abs += y;
   if ((addr_abs & 0xFF00) != (high << 8))
@@ -591,6 +653,7 @@ uint8_t olc6502::IZY(){
  //7.
     // Branch if minus bit is clear
  uint8_t olc6502::BPL(){
+
     if(GetFlag(N)==0){
        cycles++;
      addr_abs = pc + addr_rel;
@@ -684,11 +747,11 @@ uint8_t olc6502::BVS(){
     //Addition with Carry
     uint8_t olc6502::ADC(){
       fetch();
-      uint16_t sum = (uint16_t)a + (uint16_t)fetched + (uint16_t)GetFlag(C);
-      SetFlag(C, sum>255);
-      SetFlag(Z, (sum & 0x00FF) == 0);
-      SetFlag(N, sum&0x80);
-      SetFlag(V, (((uint16_t)a ^ (uint16_t)fetched) & ((uint16_t)a ^ (uint16_t)sum)) & 0x0080);
+      temp = (uint16_t)a + (uint16_t)fetched + (uint16_t)GetFlag(C);
+      SetFlag(C, temp>255);
+      SetFlag(Z, (temp & 0x00FF) == 0);
+      SetFlag(N, temp&0x80);
+      SetFlag(V, (~((uint16_t)a ^ (uint16_t)fetched) & ((uint16_t)a ^ (uint16_t)temp)) & 0x0080);
       a = temp & 0x00FF;
       return 1;
     }
@@ -698,11 +761,12 @@ uint8_t olc6502::BVS(){
       fetch();
       uint8_t value = ((uint16_t)fetched ^ 0x00FF);
       uint16_t difference = (uint16_t)a + value + (uint16_t)GetFlag(C);
+      temp=difference;
       SetFlag(C, difference>255);
       SetFlag(Z, (difference & 0x00FF) == 0);
       SetFlag(N, difference&0x0080);
       SetFlag(V, (((uint16_t)a ^ difference) & ((uint16_t)a ^ value)) & 0x0080);
-      a = temp & 0x00FF;
+      a = difference & 0x00FF;
       return 1;
     }
 
@@ -710,7 +774,7 @@ uint8_t olc6502::BVS(){
     // Push the accumulator to the top of the Stack
     uint8_t olc6502::PHA()
     {
-      cout<<"pha";
+   
       cpuWrite(0x0100 + stkp, a);
       stkp--;
       return 0;
@@ -744,10 +808,9 @@ uint8_t olc6502::BVS(){
 //22.
     // Program sourced Interrupt
     uint8_t olc6502::BRK(){
-      
       pc++;
       SetFlag(I, 1);
-      cpuWrite(0x0100 + stkp, pc>>8 & 0x00FF);
+      cpuWrite(0x0100 + stkp, (pc>>8) & 0x00FF);
       stkp--;
       cpuWrite(0x0100 + stkp, pc & 0x00FF);
       stkp--;
@@ -764,14 +827,15 @@ uint8_t olc6502::BVS(){
 // Arithmetic Left shift
     uint8_t olc6502::ASL(){
       fetch();
-      SetFlag(C, fetched & 0x80);
-      uint8_t temp = fetched << 1;
-      SetFlag(Z, temp==0x00);
+      temp = (uint16_t)fetched << 1;
+      SetFlag(C, (temp & 0xFF00)>0);
+      
+      SetFlag(Z, (temp & 0x00FF)==0x00);
       SetFlag(N, temp & 0x80);
       if (lookup[opcode].addrmode == &olc6502::IMP)
-		     a = (uint16_t) temp;
+		     a =  temp & 0x00FF;
 	    else
-		    cpuWrite(addr_abs, (uint16_t)temp);
+		    cpuWrite(addr_abs, temp & 0x00FF);
 	    return 0;
 
     }
@@ -870,11 +934,11 @@ uint8_t olc6502::CPY() {
 //N - if new value <0		Z - if new value == 0
 uint8_t olc6502::DEC() {
 	fetch();
-  cout<<"dec";
-	uint8_t temp = fetched - 1;
-	cpuWrite(addr_abs, temp);
-	SetFlag(N, temp & 0x80);
-	SetFlag(Z, temp == 0x00);
+
+	 temp = fetched - 1;
+	cpuWrite(addr_abs, temp & 0x00FF);
+	SetFlag(N, temp & 0x0080);
+	SetFlag(Z, (temp & 0x00FF)==0x0000);
 	return 0;
 }
 
@@ -886,11 +950,10 @@ uint8_t olc6502::DEC() {
 
 uint8_t olc6502::INC() {
 	fetch();
-  cout<<"inc";
-	uint8_t temp = fetched + 1;
-	cpuWrite(addr_abs, temp);
-	SetFlag(N, temp & 0x80);
-	SetFlag(Z, temp == 0x00);
+	temp = fetched + 1;
+	cpuWrite(addr_abs, temp& 0x00FF);
+	SetFlag(N, temp & 0x0080);
+	SetFlag(Z, (temp & 0x00FF)==0x0000);
 	return 0;
 }
 // 36
@@ -905,7 +968,6 @@ uint8_t olc6502::JMP() {
 // Function:    Push current pc to stack, pc = address
 uint8_t olc6502::JSR() {
 	pc--;
-  cout<<"jsr";
 	cpuWrite(0x0100 + stkp, (pc >> 8) & 0x00FF);
 	stkp--;
 	cpuWrite(0x0100 + stkp, pc & 0x00FF);
@@ -977,6 +1039,7 @@ uint8_t olc6502::NOP() {
 		case 0xDC:
 		case 0xFC:
 			return 1;
+      break;
 	}
 	return 0;
 
@@ -997,7 +1060,6 @@ uint8_t olc6502::ORA() {
 // Function:    status -> stack
 // Note:        Break flag is set to 1 before push
 uint8_t olc6502::PHP() {
-  cout<<"php";
 	cpuWrite(0x0100 + stkp, status | B | U);
 	SetFlag(B, 0);
 	SetFlag(U, 0);
@@ -1019,7 +1081,6 @@ uint8_t olc6502::PLP() {
 //except for the most-significant bit, which is rotated to the least significant bit location
 // set flage : N,Z,C;
 uint8_t olc6502::ROL() {
-  cout<<"rol";
 	fetch();
 	temp = (uint16_t)(fetched << 1) | GetFlag(C);
 	SetFlag(C, temp & 0xFF00);
@@ -1068,7 +1129,6 @@ uint8_t olc6502::RTS() {
 // Instruction: Store Accumulator at Address
 // Function:    M = A
 uint8_t olc6502::STA() {
-  cout<<"sta";
 	cpuWrite(addr_abs, a);
 	return 0;
 }
@@ -1076,7 +1136,6 @@ uint8_t olc6502::STA() {
 // Instruction: Store X Register at Address
 // Function:    M = X
 uint8_t olc6502::STX() {
-  cout<<"stx";
 	cpuWrite(addr_abs, x);
 	return 0;
 }
@@ -1084,7 +1143,6 @@ uint8_t olc6502::STX() {
 // Instruction: Store Y Register at Address
 // Function:    M = Y
 uint8_t olc6502::STY() {
-  cout<<"sty";
 	cpuWrite(addr_abs, y);
 	return 0;
 }
@@ -1156,6 +1214,7 @@ bool olc6502::complete()
 {
 	return cycles == 0;
 }
+/*
 std::map<uint16_t, std::string> olc6502::disassemble(uint16_t nStart, uint16_t nStop)
 {
 	uint32_t addr = nStart;
@@ -1275,4 +1334,4 @@ std::map<uint16_t, std::string> olc6502::disassemble(uint16_t nStart, uint16_t n
 	}
 
 	return mapLines;
-}
+}*/

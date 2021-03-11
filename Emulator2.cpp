@@ -43,7 +43,7 @@ private:
 			std::string sOffset = "$" + hex(nAddr, 4) + ":";
 			for (int col = 0; col < nColumns; col++)
 			{
-				sOffset += " " + hex(nes.cpuRead(nAddr, true), 2);
+				sOffset += " " + hex(nes.cpuRead(nAddr), 2);
 				nAddr += 1;
 			}
 			DrawString(nRamX, nRamY, sOffset);
@@ -109,7 +109,6 @@ private:
 		std::cout<<"Enter filename: ";
 		std::cin>>filename;
         rom = new Cartridge(filename);
-        std::cout<<rom->bImageValid<<" sup "<<endl;
 		if (!rom->bImageValid){
             std::cout<<"The ROM path is not valid";
 			return false;
@@ -120,7 +119,7 @@ private:
 		nes.connect_ROM(rom);
 					
 		// Extract dissassembly
-		 mapAsm = nes.cpu->disassemble(0x0000, 0xFFFF);
+		// mapAsm = nes.cpu->disassemble(0x0000, 0xFFFF);
 
 		// Reset NES
 		nes.reset();

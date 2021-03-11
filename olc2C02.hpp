@@ -17,10 +17,10 @@ private:
   uint8_t tblPalette[32];
 
 public:
-  uint8_t cpuRead(uint16_t addr, bool rdonly = false);
+  uint8_t cpuRead(uint16_t addr);
   void cpuWrite(uint16_t addr, uint8_t data);
 
-  uint8_t ppuRead(uint16_t addr, bool rdonly = false);
+  uint8_t ppuRead(uint16_t addr);
   void ppuWrite(uint16_t addr, uint8_t data);
 
 private:
@@ -306,7 +306,7 @@ olc::Pixel& olc2C02::GetColourFromPaletteRam(uint8_t palette, uint8_t pixel)
 }
 
 
-uint8_t olc2C02::cpuRead(uint16_t addr, bool rdonly)
+uint8_t olc2C02::cpuRead(uint16_t addr)
 {
 	uint8_t data = 0x00;
 
@@ -406,7 +406,7 @@ void olc2C02::cpuWrite(uint16_t addr, uint8_t data)
 	}
 }
 
-uint8_t olc2C02::ppuRead(uint16_t addr, bool rdonly)
+uint8_t olc2C02::ppuRead(uint16_t addr)
 {	
 	uint8_t data = 0x00;
 	addr &= 0x3FFF;
@@ -466,10 +466,9 @@ uint8_t olc2C02::ppuRead(uint16_t addr, bool rdonly)
 void olc2C02::ppuWrite(uint16_t addr, uint8_t data)
 {
 	addr &= 0x3FFF;
-cout<<"yes";
 	if (rom->ppuWrite(addr, data))
 	{
-		cout<<"uest";
+		
 	}
 	else if (addr >= 0x0000 && addr <= 0x1FFF)
 	{
