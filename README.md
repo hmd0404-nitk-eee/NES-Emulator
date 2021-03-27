@@ -6,5 +6,5 @@ Run the following command to compile the code:\
 ```g++ -o olcExampleProgram Emulator.cpp -lX11 -lGL -lpthread -lpng -lstdc++fs -std=c++17```\
 Now execute the executable\
 ```./olcExampleProgram```
-## Windows system
+## Windows systems
 Get a linux system and run the above commands
